@@ -509,9 +509,9 @@ export function World() {
       <Helipad />
       <VendorKiosk />
       <Lair position={[80, 0, -92]} name="Guarida de Tuétano" color="#ff3030" />
-      <Lair position={[-120, 0, 30]} name="Nido de Illidan" color="#3cff8a" />
-      <Lair position={[120, 0, -90]} name="Templo Majin" color="#ff66cc" />
-      <Lair position={[0, 0, -128]} name="Torre Exánime" color="#5ac8ff" />
+      <Lair position={[-120, 0, 30]} name="Fortaleza Carmesí" color="#ff5050" />
+      <Lair position={[120, 0, -90]} name="Bastión Sombrío" color="#c040ff" />
+      <Lair position={[0, 0, -128]} name="Torre de Hielo" color="#5ac8ff" />
       <Horizon />
     </group>
   );

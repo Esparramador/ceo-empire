@@ -59,7 +59,7 @@ export function lookFor(variant: CharacterVariant, seed = ""): Look {
     case "police":       return { skin: hashPick(seed + "s", SKINS), jacket: "#1c3f8f", shirt: "#1c3f8f", pants: "#14306e", shoes: "#111", hair: "#222", hairStyle: "short", hat: "police", badge: true, belt: "#111" };
     case "lord_tuetano": return { skin: "#ece6d8", jacket: "#ece6d8", shirt: "#ece6d8", pants: "#ece6d8", shoes: "#d8d2c4", hair: "#000", hairStyle: "bald", hat: "crown", cape: "#1a0a0a", bones: true, eyes: "#ff2020" };
     case "majin":        return { skin: "#f28cc0", jacket: "#2a2a2a", shirt: "#f28cc0", pants: "#f5f0d0", shoes: "#f5c400", hair: "#000", hairStyle: "bald", hat: "none", antenna: true, belly: true, eyes: "#111", vest: true, belt: "#2a2a2a" };
-    case "illidan":      return { skin: "#7a4fb0", jacket: "#7a4fb0", shirt: "#7a4fb0", pants: "#3b2a55", shoes: "#241a36", hair: "#111", hairStyle: "long", hat: "none", horns: true, wings: true, eyes: "#3cff8a", tattoos: true, blindfold: true };
+    case "illidan":      return { skin: "#7a4fb0", jacket: "#7a4fb0", shirt: "#7a4fb0", pants: "#221c2c", shoes: "#151020", hair: "#111", hairStyle: "long", hat: "none", horns: true, wings: true, eyes: "#3cff8a", tattoos: true, blindfold: true };
     case "arthas":       return { skin: "#cfd6e6", jacket: "#5e6b85", shirt: "#3a4560", pants: "#2c3448", shoes: "#3a4560", hair: "#e8e8f0", hairStyle: "white_long", hat: "helmet", cape: "#2a1a3a", sword: true, metal: true, eyes: "#5ac8ff", belt: "#4a5670" };
   }
 }
@@ -411,6 +411,33 @@ export function ProceduralCharacter({ variant, seed = "", anim, scale = 1 }: { v
 }
 
 // ── Soporte opcional de modelos GLB / STL ────────────────────────────────────
+interface ModelConfig {
+  /** full: cuerpo completo · bust: cortado por la cintura (se añaden piernas) · creature: flota */
+  mode: "full" | "bust" | "creature";
+  /** altura objetivo del modelo en metros (en modo bust, del busto) */
+  height: number;
+  /** giro para que el modelo mire hacia +Z (los de Tripo miran hacia +X) */
+  yaw: number;
+  /** anchura máxima (criaturas con alas) */
+  maxWidth?: number;
+  /** altura de flotación */
+  hover?: number;
+  /** fracción de la altura a recortar por abajo (peanas) */
+  clipBottom?: number;
+  /** escala de las piernas procedurales (modo bust) */
+  legScale?: number;
+}
+
+const TRIPO_YAW = -Math.PI / 2;
+export const MODEL_CONFIG: Record<string, ModelConfig> = {
+  ceo_crafter:      { mode: "bust", height: 1.05, yaw: TRIPO_YAW, legScale: 1.0 },
+  guerrero:         { mode: "bust", height: 1.5, yaw: TRIPO_YAW, legScale: 1.3 },
+  guerrero_2:       { mode: "bust", height: 1.5, yaw: TRIPO_YAW, legScale: 1.3 },
+  lord_tuetano:     { mode: "creature", height: 2.6, yaw: TRIPO_YAW, maxWidth: 4.6, hover: 0.9 },
+  mini_dragon_blue: { mode: "full", height: 3.6, yaw: TRIPO_YAW, clipBottom: 0.11 },
+};
+const DEFAULT_CONFIG: ModelConfig = { mode: "full", height: 1.8, yaw: 0 };
+
 const availability = new Map<string, Promise<boolean>>();
 
 /** Comprueba una sola vez si existe un fichero real (no el index.html del fallback SPA). */
@@ -431,49 +458,149 @@ class ModelBoundary extends Component<{ fallback: ReactNode; children: ReactNode
   render() { return this.state.failed ? this.props.fallback : this.props.children; }
 }
 
-function GlbModel({ url, anim, scale }: { url: string; anim: AnimState; scale: number }) {
+/** Piernas procedurales animadas para modelos cortados por la cintura. */
+function ProceduralLegs({ look, anim, legScale }: { look: Look; anim: AnimState; legScale: number }) {
+  const m = useMats(look);
+  const legL = useRef<THREE.Group>(null!);
+  const legR = useRef<THREE.Group>(null!);
+  const t = useRef(Math.random() * 10);
+  useEffect(() => () => { Object.values(m).forEach(x => x.dispose()); }, [m]);
+  useFrame((_, dt) => {
+    t.current += dt * (anim.moving > 0.05 ? 8 * anim.speedMul : 0);
+    const swing = Math.sin(t.current) * 0.8 * anim.moving;
+    if (legL.current) legL.current.rotation.x = swing;
+    if (legR.current) legR.current.rotation.x = -swing;
+    const flash = anim.hitFlash;
+    for (const mat of [m.pants, m.shoes]) {
+      if (flash > 0.01) { mat.emissive.setRGB(1, 0.1, 0.1); mat.emissiveIntensity = flash * 0.9; }
+      else if (mat.emissiveIntensity !== 0) mat.emissiveIntensity = 0;
+    }
+  });
+  const legH = 0.84;
+  return (
+    <group scale={legScale}>
+      <mesh position={[0, legH + 0.02, 0]} castShadow material={m.pants} geometry={rbox(0.62, 0.22, 0.4, 0.06)} />
+      {([-1, 1] as const).map(side => (
+        <group key={side} ref={side === -1 ? legL : legR} position={[side * 0.16, legH, 0]}>
+          <mesh position={[0, -legH / 2 + 0.05, 0]} castShadow material={m.pants} geometry={rbox(0.27, legH - 0.1, 0.27, 0.07)} />
+          <mesh position={[0, -legH + 0.07, 0.07]} castShadow material={m.shoes} geometry={rbox(0.29, 0.14, 0.42, 0.05)} />
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function useModelMaterials(obj: THREE.Object3D) {
+  return useMemo(() => {
+    const mats: THREE.MeshStandardMaterial[] = [];
+    obj.traverse(o => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.castShadow = true; mesh.receiveShadow = true;
+      const arr = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const mat of arr) if ((mat as THREE.MeshStandardMaterial).isMeshStandardMaterial) mats.push(mat as THREE.MeshStandardMaterial);
+    });
+    return mats;
+  }, [obj]);
+}
+
+function GlbModel({ url, name, anim, scale, look }: { url: string; name: string; anim: AnimState; scale: number; look: Look }) {
+  const cfg = MODEL_CONFIG[name] ?? DEFAULT_CONFIG;
   const { scene, animations } = useGLTF(url);
   const cloned = useMemo(() => SkeletonUtils.clone(scene), [scene]);
-  const group = useRef<THREE.Group>(null!);
-  const { actions, names } = useAnimations(animations, group);
-  const normalized = useMemo(() => {
+  const root = useRef<THREE.Group>(null!);
+  const bodyRef = useRef<THREE.Group>(null!);
+  const { actions, names } = useAnimations(animations, root);
+  const mats = useModelMaterials(cloned);
+  const t = useRef(Math.random() * 10);
+  const clipPlane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
+  const worldPos = useMemo(() => new THREE.Vector3(), []);
+
+  const fit = useMemo(() => {
     const box = new THREE.Box3().setFromObject(cloned);
-    const h = box.max.y - box.min.y || 1;
-    const s = 1.8 / h;
-    return { s, y: -box.min.y * s, x: -(box.min.x + box.max.x) / 2 * s, z: -(box.min.z + box.max.z) / 2 * s };
-  }, [cloned]);
+    const size = new THREE.Vector3(); box.getSize(size);
+    let s = cfg.height / (size.y || 1);
+    if (cfg.maxWidth) s = Math.min(s, cfg.maxWidth / Math.max(size.x, size.z, 0.001));
+    const legOffset = cfg.mode === "bust" ? 0.84 * (cfg.legScale ?? 1) - 0.06 : 0;
+    return {
+      s,
+      x: -(box.min.x + box.max.x) / 2 * s,
+      y: -box.min.y * s + legOffset + (cfg.hover ?? 0),
+      z: -(box.min.z + box.max.z) / 2 * s,
+      height: size.y * s,
+    };
+  }, [cloned, cfg]);
 
   useEffect(() => {
-    cloned.traverse(o => { if ((o as THREE.Mesh).isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-  }, [cloned]);
+    if (cfg.clipBottom) for (const m of mats) { m.clippingPlanes = [clipPlane]; m.clipShadows = true; m.needsUpdate = true; }
+    return () => { for (const m of mats) { m.clippingPlanes = null; m.emissiveIntensity = 0; } };
+  }, [mats, cfg.clipBottom, clipPlane]);
 
   const current = useRef<string | null>(null);
-  useFrame(() => {
+  useFrame((_, dt) => {
+    const a = anim;
+    t.current += dt * (a.moving > 0.05 ? 8 * a.speedMul : 1.5);
     if (names.length) {
       const find = (k: string[]) => names.find(n => k.some(x => n.toLowerCase().includes(x)));
-      const want = anim.dead > 0 ? (find(["death", "die"]) ?? null)
-        : anim.attack > 0.5 ? (find(["attack", "punch", "hit"]) ?? null)
-        : anim.moving > 0.2 ? (find(["run", "walk"]) ?? names[0])
+      const want = a.dead > 0 ? (find(["death", "die"]) ?? null)
+        : a.attack > 0.5 ? (find(["attack", "punch", "hit"]) ?? null)
+        : a.moving > 0.2 ? (find(["run", "walk"]) ?? names[0])
         : (find(["idle", "stand"]) ?? names[0]);
       if (want && want !== current.current) {
         if (current.current) actions[current.current]?.fadeOut(0.2);
         actions[want]?.reset().fadeIn(0.2).play();
         current.current = want;
       }
+    } else if (bodyRef.current) {
+      // Animación procedural para mallas estáticas
+      const lunge = a.attack > 0 ? Math.sin(a.attack * Math.PI) : 0;
+      if (cfg.mode === "creature") {
+        bodyRef.current.position.y = Math.sin(t.current * 0.6) * 0.18;
+        bodyRef.current.position.z = lunge * 0.7;
+        bodyRef.current.rotation.x = a.moving * 0.18 + lunge * 0.3;
+        bodyRef.current.rotation.z = Math.sin(t.current * 0.4) * 0.05;
+      } else if (cfg.mode === "bust") {
+        bodyRef.current.position.y = Math.abs(Math.sin(t.current)) * 0.07 * a.moving;
+        bodyRef.current.rotation.x = a.moving * 0.06 + lunge * 0.35;
+        bodyRef.current.rotation.y = Math.sin(t.current) * 0.06 * a.moving;
+      } else {
+        bodyRef.current.position.y = Math.abs(Math.sin(t.current)) * 0.12 * a.moving;
+        bodyRef.current.rotation.x = lunge * 0.25;
+        bodyRef.current.rotation.z = Math.sin(t.current) * 0.04 * a.moving;
+        bodyRef.current.position.z = lunge * 0.5;
+      }
     }
-    if (group.current) { group.current.rotation.x = -Math.PI / 2 * anim.dead; group.current.position.y = -0.3 * anim.dead; }
+    if (root.current) {
+      root.current.rotation.x = -Math.PI / 2 * a.dead;
+      root.current.position.y = -0.3 * a.dead;
+      if (cfg.clipBottom) {
+        root.current.getWorldPosition(worldPos);
+        clipPlane.constant = a.dead > 0 ? 1e6 : -(worldPos.y + cfg.clipBottom * fit.height * scale);
+      }
+    }
+    const flash = a.hitFlash;
+    for (const m of mats) {
+      if (flash > 0.01) { m.emissive.setRGB(1, 0.1, 0.1); m.emissiveIntensity = flash; }
+      else if (m.emissiveIntensity !== 0) m.emissiveIntensity = 0;
+    }
   });
 
   return (
-    <group ref={group} scale={scale}>
-      <group scale={normalized.s} position={[normalized.x, normalized.y, normalized.z]}>
-        <primitive object={cloned} />
+    <group ref={root} scale={scale}>
+      {cfg.mode === "bust" && <ProceduralLegs look={look} anim={anim} legScale={cfg.legScale ?? 1} />}
+      <group ref={bodyRef}>
+        <group rotation={[0, cfg.yaw, 0]}>
+          <group scale={fit.s} position={[fit.x, fit.y, fit.z]}>
+            <primitive object={cloned} />
+          </group>
+        </group>
       </group>
     </group>
   );
 }
 
-function StlModel({ url, anim, scale, color }: { url: string; anim: AnimState; scale: number; color: string }) {
+function StlModel({ url, name, anim, scale, color }: { url: string; name: string; anim: AnimState; scale: number; color: string }) {
+  const cfg = MODEL_CONFIG[name] ?? DEFAULT_CONFIG;
   const geometry = useLoader(STLLoader, url);
   const group = useRef<THREE.Group>(null!);
   const normalized = useMemo(() => {
@@ -481,16 +608,18 @@ function StlModel({ url, anim, scale, color }: { url: string; anim: AnimState; s
     const box = geometry.boundingBox!;
     // Los STL suelen tener Z hacia arriba
     const h = (box.max.z - box.min.z) || 1;
-    const s = 1.8 / h;
+    const s = cfg.height / h;
     return { s, x: -(box.min.x + box.max.x) / 2 * s, y: -box.min.z * s, z: (box.min.y + box.max.y) / 2 * s };
-  }, [geometry]);
+  }, [geometry, cfg.height]);
   useFrame(() => { if (group.current) { group.current.rotation.x = -Math.PI / 2 * anim.dead; group.current.position.y = -0.3 * anim.dead; } });
   return (
     <group ref={group} scale={scale}>
-      <group position={[normalized.x, normalized.y, normalized.z]} rotation={[-Math.PI / 2, 0, 0]} scale={normalized.s}>
-        <mesh geometry={geometry} castShadow receiveShadow>
-          <meshStandardMaterial color={color} roughness={0.6} metalness={0.1} />
-        </mesh>
+      <group rotation={[0, cfg.yaw, 0]}>
+        <group position={[normalized.x, normalized.y, normalized.z]} rotation={[-Math.PI / 2, 0, 0]} scale={normalized.s}>
+          <mesh geometry={geometry} castShadow receiveShadow>
+            <meshStandardMaterial color={color} roughness={0.6} metalness={0.1} />
+          </mesh>
+        </group>
       </group>
     </group>
   );
@@ -509,16 +638,22 @@ export function Character({ variant, glb, seed, anim, scale = 1 }: { variant: Ch
     })();
     return () => { alive = false; };
   }, [base]);
+  const look = useMemo(() => lookFor(variant, seed), [variant, seed]);
   const fallback = <ProceduralCharacter variant={variant} seed={seed} anim={anim} scale={scale} />;
-  if (!model) return fallback;
-  const look = lookFor(variant, seed);
+  if (!model || !glb) return fallback;
   return (
     <ModelBoundary fallback={fallback}>
       <Suspense fallback={fallback}>
         {model.kind === "glb"
-          ? <GlbModel url={model.url} anim={anim} scale={scale} />
-          : <StlModel url={model.url} anim={anim} scale={scale} color={look.jacket} />}
+          ? <GlbModel url={model.url} name={glb} anim={anim} scale={scale} look={look} />
+          : <StlModel url={model.url} name={glb} anim={anim} scale={scale} color={look.jacket} />}
       </Suspense>
     </ModelBoundary>
   );
+}
+
+// Precarga de los modelos incluidos
+for (const name of Object.keys(MODEL_CONFIG)) {
+  const url = `${import.meta.env.BASE_URL}assets/models/${name}.glb`;
+  void checkAsset(url).then(ok => { if (ok) useGLTF.preload(url); });
 }

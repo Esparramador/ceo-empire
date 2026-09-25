@@ -18,6 +18,7 @@ export function Game() {
         gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05, powerPreference: "high-performance" }}
         camera={{ fov: 62, near: 0.2, far: 1200, position: [0, 6, 42] }}
         style={{ background: "#000" }}
+        onCreated={({ gl }) => { gl.localClippingEnabled = true; }}
       >
         <Suspense fallback={null}>
           <DayNightSystem />

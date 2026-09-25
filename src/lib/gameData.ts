@@ -107,6 +107,8 @@ export type NpcType = "friendly" | "neutral" | "hostile" | "boss" | "police";
 export type CharacterVariant =
   | "alec" | "formal" | "ejecutiva" | "creativa" | "casual_m" | "casual_f"
   | "vendor" | "goon" | "police" | "lord_tuetano" | "majin" | "illidan" | "arthas";
+// Nota: "illidan", "majin" y "arthas" son solo estilos del personaje procedural de respaldo;
+// en el juego los jefes son Guerrero Carmesí, Guerrero Sombrío y Dragón de Hielo (modelos GLB).
 
 export interface NpcConfig {
   id: string;
@@ -129,6 +131,7 @@ const ADVISOR_LINES_GARCIA = [
   "CEO, el mercado nos espera. Tu visión cambiará esta ciudad para siempre.",
   "Cada negocio que compras genera ingresos pasivos. Mejóralos con la tecla U.",
   "Los matones de Lord Tuétano rondan el noreste. Ten cuidado por la noche.",
+  "Dicen que en la Torre de Hielo, al norte, duerme un dragón. Nadie ha vuelto de allí.",
 ];
 const ADVISOR_LINES_MARIA = [
   "Los inversores están listos. ¡Hoy es el día del éxito!",
@@ -173,10 +176,10 @@ export const NPC_CONFIGS: NpcConfig[] = [
   { id: "goon4", name: "Guardaespaldas",   variant: "goon", type: "hostile", pos: [-112, 0, 48], wanderRadius: 10, dialogue: GOON_LINES, health: 90, damage: 9, group: "illidan", respawn: true, aggroRange: 14 },
   { id: "goon5", name: "Guardaespaldas",   variant: "goon", type: "hostile", pos: [112, 0, -88], wanderRadius: 10, dialogue: GOON_LINES, health: 90, damage: 9, group: "majin", respawn: true, aggroRange: 14 },
   // Jefes
-  { id: "boss_tuetano", name: "Lord Tuétano",      variant: "lord_tuetano", type: "boss", pos: [80, 0, -84],   wanderRadius: 6, dialogue: ["¡Tu empresa no vale nada! ¡Yo domino este mercado y lo aplasto todo!"], health: 320, damage: 14, scale: 1.25, aggroRange: 18, glb: "lord_tuetano" },
-  { id: "boss_illidan", name: "Illidan Marcados", variant: "illidan",      type: "boss", pos: [-120, 0, 38],  wanderRadius: 6, dialogue: ["No estás preparado… para competir conmigo en el mercado."], health: 420, damage: 16, scale: 1.3, aggroRange: 18, glb: "illidan" },
-  { id: "boss_majin",   name: "Majin CEO",         variant: "majin",        type: "boss", pos: [120, 0, -80],  wanderRadius: 6, dialogue: ["¡MAJIN CEO DESTRUYE TODOS LOS NEGOCIOS! ¡CHOCOLATE!"], health: 400, damage: 15, scale: 1.35, aggroRange: 18, glb: "majin_bu" },
-  { id: "boss_arthas",  name: "Arthas, Rey Exánime", variant: "arthas",     type: "boss", pos: [0, 0, -118],   wanderRadius: 6, dialogue: ["Este mundo no necesita héroes empresariales… sólo al Rey Exánime de los negocios."], health: 700, damage: 20, scale: 1.4, aggroRange: 20, glb: "arthas" },
+  { id: "boss_tuetano",  name: "Lord Tuétano",      variant: "lord_tuetano", type: "boss", pos: [80, 0, -84],  wanderRadius: 6, dialogue: ["¡Tu empresa no vale nada! ¡Yo domino este mercado y lo aplasto todo!"], health: 320, damage: 14, scale: 1.0, aggroRange: 18, glb: "lord_tuetano" },
+  { id: "boss_guerrero", name: "Guerrero Carmesí",  variant: "arthas",       type: "boss", pos: [-120, 0, 38], wanderRadius: 6, dialogue: ["Mi acero ha hundido más empresas que la bolsa. La tuya es la siguiente."], health: 420, damage: 16, scale: 1.15, aggroRange: 18, glb: "guerrero" },
+  { id: "boss_sombrio",  name: "Guerrero Sombrío",  variant: "illidan",      type: "boss", pos: [120, 0, -80], wanderRadius: 6, dialogue: ["Desde las sombras controlo el mercado. Nadie compra sin mi permiso."], health: 400, damage: 15, scale: 1.15, aggroRange: 18, glb: "guerrero_2" },
+  { id: "boss_dragon",   name: "Dragón de Hielo",   variant: "majin",        type: "boss", pos: [0, 0, -118],  wanderRadius: 6, dialogue: ["GRRRAAAH… Tu imperio se congelará como todos los demás."], health: 700, damage: 20, scale: 1.0, aggroRange: 20, glb: "mini_dragon_blue" },
 ];
 
 export const BOSS_IDS = NPC_CONFIGS.filter(n => n.type === "boss").map(n => n.id);
@@ -214,7 +217,7 @@ export interface PlayableCharacter {
 }
 
 export const CHARACTERS: PlayableCharacter[] = [
-  { key: "alec",      variant: "alec",      label: "Alec CEO",      icon: "🎩", description: "El millonario del mercado",  perk: "+10 % ingresos pasivos",          glb: "alec_monopoly" },
+  { key: "alec",      variant: "alec",      label: "CEO Crafter",   icon: "😎", description: "El fundador de Comic Crafter", perk: "+10 % ingresos pasivos",          glb: "ceo_crafter" },
   { key: "formal",    variant: "formal",    label: "CEO Formal",    icon: "👔", description: "Elegante y estratégico",     perk: "Negocios un 10 % más baratos",    glb: "chico_formal" },
   { key: "ejecutiva", variant: "ejecutiva", label: "CEO Ejecutiva", icon: "💼", description: "Liderazgo con estilo",       perk: "+20 % de salud máxima",            glb: "chica_ejecutiva" },
   { key: "creativa",  variant: "creativa",  label: "CEO Creativa",  icon: "🎨", description: "Innovación sin límites",     perk: "+15 % velocidad de movimiento",   glb: "chica_creativa" },
@@ -334,9 +337,9 @@ export const MISSIONS: Mission[] = [
     completeText: "Equipo formado. La productividad se dispara.", nextMissionId: "m9",
   },
   {
-    id: "m9", title: "Guerra de Mercado", giverNpcId: "npc_garcia", type: "kill_boss", targetBosses: ["boss_illidan", "boss_majin"],
-    briefing: "Illidan Marcados (oeste) y Majin CEO (este) han formado un cártel contra ti. Derrota a ambos. Una pistola y el traje blindado te vendrán bien.",
-    objective: "Derrota a Illidan Marcados y a Majin CEO",
+    id: "m9", title: "Guerra de Mercado", giverNpcId: "npc_garcia", type: "kill_boss", targetBosses: ["boss_guerrero", "boss_sombrio"],
+    briefing: "El Guerrero Carmesí (oeste) y el Guerrero Sombrío (este) han formado un cártel contra ti. Derrota a ambos. Una pistola y el traje blindado te vendrán bien.",
+    objective: "Derrota al Guerrero Carmesí y al Guerrero Sombrío",
     color: "#c040ff", rewardMoney: 80000, rewardKarma: -10,
     completeText: "El cártel se ha disuelto. Ya nadie discute tu liderazgo.", nextMissionId: "m10",
   },
@@ -348,11 +351,11 @@ export const MISSIONS: Mission[] = [
     completeText: "Seis negocios. Los periódicos ya hablan de tu imperio.", nextMissionId: "m11",
   },
   {
-    id: "m11", title: "El Rey Exánime", giverNpcId: "npc_garcia", type: "kill_boss", targetBosses: ["boss_arthas"],
-    briefing: "Arthas, el Rey Exánime de los negocios, controla la Torre Exánime al norte. Es el enemigo más poderoso que verás. Ve preparado.",
-    objective: "Derrota a Arthas en la Torre Exánime",
+    id: "m11", title: "El Dragón de Hielo", giverNpcId: "npc_garcia", type: "kill_boss", targetBosses: ["boss_dragon"],
+    briefing: "Un dragón de hielo custodia la Torre de Hielo, al norte, y congela cualquier negocio que se acerque. Es el enemigo más poderoso que verás. Ve preparado.",
+    objective: "Derrota al Dragón de Hielo en la Torre de Hielo",
     markerPos: [0, 0, -118], color: "#66ccff", rewardMoney: 200000, rewardKarma: 30,
-    completeText: "Arthas ha caído. Ya no queda rival en la ciudad.", nextMissionId: "m12",
+    completeText: "El dragón ha caído. Ya no queda rival en la ciudad.", nextMissionId: "m12",
   },
   {
     id: "m12", title: "CEO del Año", giverNpcId: "npc_garcia", type: "goto",
@@ -435,7 +438,7 @@ export const SPECIAL_BUILDINGS: BuildingDef[] = [
   { x: 80, z: -92, w: 18, d: 12, h: 12, color: "#4a3030", style: 3 },                      // Guarida Tuétano
   { x: -120, z: 30, w: 16, d: 12, h: 14, color: "#3a2a4a", style: 3 },                     // Guarida Illidan
   { x: 120, z: -90, w: 16, d: 12, h: 12, color: "#4a3a50", style: 3 },                     // Guarida Majin
-  { x: 0, z: -128, w: 22, d: 16, h: 56, color: "#243040", style: 2, roof: "antenna" },     // Torre Exánime
+  { x: 0, z: -128, w: 22, d: 16, h: 56, color: "#243040", style: 2, roof: "antenna" },     // Torre de Hielo
   { x: -40, z: 34, w: 6, d: 4, h: 3.2, color: "#7a4a2a", style: 3 },                       // Kiosco del Vendedor
 ];
 

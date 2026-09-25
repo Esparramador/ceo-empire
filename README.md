@@ -15,15 +15,16 @@ ciclo día/noche y guardado automático.
 - **8 negocios comprables y mejorables** (3 niveles) que generan dinero cada segundo;
   **6 empleados** contratables (+10 % ingresos cada uno).
 - **Combate**: puños, bate y pistola con munición; enemigos con vida, botín, reaparición;
-  **4 jefes** únicos (Lord Tuétano, Illidan, Majin CEO, Arthas) con barra de vida.
+  **4 jefes** únicos (Lord Tuétano, Guerrero Carmesí, Guerrero Sombrío, Dragón de Hielo) con barra de vida.
 - **Policía y nivel de búsqueda** (5 estrellas) por atacar civiles; se disipa con el tiempo.
 - **6 coches conducibles** con aceleración, giro, freno de mano, choques y atropellos.
 - **Objetos por la ciudad**: maletines de dinero, kits médicos, munición.
 - **Ciclo día/noche** de 20 minutos con sol, luna, estrellas, niebla y ventanas encendidas.
 - **HUD completo**: salud, karma, dinero, ingresos, búsqueda, reloj, arma, misión, cronómetro,
   pistas contextuales, notificaciones, barra de jefe, minimapa con objetivo y distancia.
-- **Personajes 3D generados por código** (4 CEOs jugables con ventajas distintas, 12 ciudadanos,
-  matones, policías y jefes) con animaciones; soporte opcional de modelos GLB/STL propios.
+- **Modelos 3D propios** (CEO Crafter jugable, Lord Tuétano, Guerrero Carmesí, Guerrero Sombrío y
+  Dragón de Hielo, optimizados a WebP y 5,7 MB en total) más **personajes generados por código**
+  (3 CEOs jugables, 12 ciudadanos, matones y policías) con animaciones.
 - **Sonido sintetizado** (WebAudio, sin ficheros): golpes, disparos, caja, motor, sirena, jingles.
 - **Guardado automático** en el navegador y botón «Continuar»; muerte con reaparición en el hospital.
 
@@ -60,11 +61,13 @@ npm run preview    # sirve dist/
 Variables opcionales: `PORT` (puerto) y `BASE_PATH` (ruta base para desplegar en subcarpeta).
 Requiere un navegador con WebGL (Chrome, Edge o Firefox actualizados). Pensado para escritorio.
 
-## 🧩 Modelos 3D propios
+## 🧩 Modelos 3D
 
-Copia tus `.glb` o `.stl` en `public/assets/models/` con los nombres indicados en
-[`public/assets/models/README.md`](public/assets/models/README.md) y el juego los cargará
-automáticamente (escala, centrado y animaciones por nombre). Sin ficheros, usa los personajes procedurales.
+Los modelos de `public/assets/models/` se cargan automáticamente (ver
+[`public/assets/models/README.md`](public/assets/models/README.md)). Los bustos cortados por la
+cintura reciben piernas procedurales animadas; la orientación, altura y modo de cada modelo se
+ajustan en `MODEL_CONFIG` (`src/game/Characters.tsx`). Si un modelo falta o falla, se usa el
+personaje procedural equivalente. Para añadir más, copia el `.glb` (o `.stl`) con el nombre esperado.
 
 ## 🏗️ Stack
 
