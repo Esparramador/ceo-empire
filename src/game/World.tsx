@@ -6,9 +6,10 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
-  BUSINESSES, CITY_BUILDINGS, SPECIAL_BUILDINGS, PARKS, ROAD_LINES, WORLD, blockCenter,
+  BUSINESSES, CITY_BUILDINGS, SPECIAL_BUILDINGS, PARKS, ROAD_LINES, WORLD, blockCenter, CLUB,
   MAX_BUSINESS_LEVEL, type BuildingDef,
 } from "../lib/gameData";
+import { KitModel, KitInstances, type KitTransform } from "./KitModel";
 import { useGame, formatMoney } from "../lib/gameStore";
 import { runtime } from "../lib/world";
 import { windowTexture, asphaltTexture, sidewalkTexture, grassTexture, textTexture } from "../lib/textures";
@@ -30,6 +31,11 @@ function facadeMaterial(color: string, style: number) {
 }
 
 function Building({ b }: { b: BuildingDef }) {
+  if (b.kit) return <KitModel name={b.kit} position={[b.x, 0, b.z]} rotation={b.rotation ?? 0} scale={b.kitScale ?? 1} />;
+  return <BoxBuilding b={b} />;
+}
+
+function BoxBuilding({ b }: { b: BuildingDef }) {
   const mat = useMemo(() => facadeMaterial(b.color, b.style), [b.color, b.style]);
   const geo = useMemo(() => {
     const g = new THREE.BoxGeometry(b.w, b.h, b.d);
@@ -169,69 +175,50 @@ function Park({ center }: { center: [number, number, number] }) {
         <planeGeometry args={[3, 30]} />
         <meshStandardMaterial color="#b9a78a" roughness={0.95} />
       </mesh>
-      {/* Fuente */}
-      <mesh position={[0, 0.4, 0]} receiveShadow castShadow>
-        <cylinderGeometry args={[3, 3.2, 0.8, 20]} />
-        <meshStandardMaterial color="#8d949c" roughness={0.6} />
-      </mesh>
-      <mesh position={[0, 0.82, 0]}>
-        <cylinderGeometry args={[2.7, 2.7, 0.1, 20]} />
-        <meshStandardMaterial color="#3aa0d8" roughness={0.1} metalness={0.3} transparent opacity={0.85} />
-      </mesh>
-      <mesh position={[0, 1.6, 0]} castShadow>
-        <cylinderGeometry args={[0.3, 0.5, 1.6, 10]} />
-        <meshStandardMaterial color="#9aa0a8" />
-      </mesh>
+      {/* Fuente (Kenney) */}
+      <KitModel name="ke_pavement-fountain" position={[0, 0.05, 0]} scale={8} />
       {trees.map((t, i) => <Tree key={i} position={t} scale={0.9 + (i % 3) * 0.15} />)}
-      {/* Bancos */}
-      {[[-5, 0, 5], [5, 0, -5]].map(([x, , z], i) => (
-        <group key={i} position={[x, 0, z]}>
-          <mesh position={[0, 0.5, 0]} castShadow><boxGeometry args={[2, 0.12, 0.6]} /><meshStandardMaterial color="#7a4a2a" /></mesh>
-          <mesh position={[0, 0.85, -0.25]} castShadow><boxGeometry args={[2, 0.5, 0.1]} /><meshStandardMaterial color="#7a4a2a" /></mesh>
-        </group>
+      {/* Bancos y papeleras (KayKit) */}
+      {[[-5, 6, 0], [5, 6, Math.PI], [6, -5, Math.PI / 2], [-6, -5, -Math.PI / 2]].map(([x, z, r], i) => (
+        <KitModel key={i} name="kk_bench" position={[x, 0.05, z]} rotation={r} scale={5} />
       ))}
+      {[[-3, 8], [8, 3]].map(([x, z], i) => <KitModel key={`t${i}`} name="kk_trash_A" position={[x, 0.05, z]} scale={5} />)}
     </group>
   );
 }
 
 function StreetTrees() {
-  // Árboles en las esquinas de cada bloque (instanciados)
   const half = Math.floor(WORLD.blocksPerSide / 2);
-  const parkKeys = new Set(PARKS.map(p => `${p[0]},${p[2]}`));
-  const positions = useMemo(() => {
-    const out: THREE.Vector3[] = [];
-    const off = WORLD.blockSize / 2 - WORLD.roadWidth / 2 - 1.2;
-    for (let i = -half; i <= half; i++) for (let j = -half; j <= half; j++) {
-      const [x, , z] = blockCenter(i, j);
-      if (parkKeys.has(`${x},${z}`) || (i === 0 && j === 0)) continue;
-      for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) out.push(new THREE.Vector3(x + sx * off, 0, z + sz * off));
+  const parkKeys = useMemo(() => new Set(PARKS.map(p => `${p[0]},${p[2]}`)), []);
+  const { short, tall, hydrants, dumpsters, lights } = useMemo(() => {
+    const short: KitTransform[] = [], tall: KitTransform[] = [], hydrants: KitTransform[] = [], dumpsters: KitTransform[] = [], lights: KitTransform[] = [];
+    const off = WORLD.blockSize / 2 - WORLD.roadWidth / 2 - 1.9;
+    let i = 0;
+    for (let bi = -half; bi <= half; bi++) for (let bj = -half; bj <= half; bj++) {
+      const [x, , z] = blockCenter(bi, bj);
+      if (parkKeys.has(`${x},${z}`) || (bi === 0 && bj === 0) || (bi === -1 && bj === 2)) continue;
+      for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        const t = { x: x + sx * off, z: z + sz * off, rotation: (i % 4) * Math.PI / 2 };
+        (i % 3 === 0 ? tall : short).push(t);
+        i++;
+      }
+      if ((bi + bj) % 2 === 0) hydrants.push({ x: x - off - 1.2, z: z + 4, rotation: Math.PI / 2 });
+      if ((bi * 3 + bj) % 4 === 0) dumpsters.push({ x: x + off + 0.2, z: z - 6, rotation: Math.PI / 2 });
     }
-    return out;
+    // Semáforos en los cruces
+    for (const lx of ROAD_LINES) for (const lz of ROAD_LINES) {
+      lights.push({ x: lx + 5.6, z: lz - 5.6, rotation: 0 });
+      lights.push({ x: lx - 5.6, z: lz + 5.6, rotation: Math.PI });
+    }
+    return { short, tall, hydrants, dumpsters, lights };
   }, [half, parkKeys]);
-  const trunk = useRef<THREE.InstancedMesh>(null!);
-  const crown = useRef<THREE.InstancedMesh>(null!);
-  useEffect(() => {
-    const m = new THREE.Matrix4();
-    positions.forEach((p, i) => {
-      const s = 0.8 + ((i * 7) % 5) * 0.08;
-      m.compose(new THREE.Vector3(p.x, 1.4 * s, p.z), new THREE.Quaternion(), new THREE.Vector3(s, s, s));
-      trunk.current.setMatrixAt(i, m);
-      m.compose(new THREE.Vector3(p.x, 3.6 * s, p.z), new THREE.Quaternion(), new THREE.Vector3(s, s, s));
-      crown.current.setMatrixAt(i, m);
-    });
-    trunk.current.instanceMatrix.needsUpdate = true;
-    crown.current.instanceMatrix.needsUpdate = true;
-  }, [positions]);
   return (
     <group>
-      <instancedMesh ref={trunk} args={[undefined, undefined, positions.length]} castShadow>
-        <cylinderGeometry args={[0.18, 0.26, 2.8, 6]} />
-        <meshStandardMaterial color="#5c3d2e" roughness={0.9} />
-      </instancedMesh>
-      <instancedMesh ref={crown} args={[undefined, undefined, positions.length]} castShadow>
-        <sphereGeometry args={[1.7, 8, 6]} />
-        <meshStandardMaterial color="#2e7a30" roughness={0.85} />
-      </instancedMesh>
+      <KitInstances name="ke_grass-trees" transforms={short} scale={3.6} />
+      <KitInstances name="ke_grass-trees-tall" transforms={tall} scale={3.6} />
+      <KitInstances name="kk_firehydrant" transforms={hydrants} scale={5} />
+      <KitInstances name="kk_dumpster" transforms={dumpsters} scale={5} />
+      <KitInstances name="kk_trafficlight_A" transforms={lights} scale={5} />
     </group>
   );
 }
@@ -241,34 +228,20 @@ const LAMP_LIGHT_COUNT = 10;
 function StreetLights() {
   const lights = useRef<THREE.PointLight[]>([]);
   const lightAcc = useRef(1);
-  const positions = useMemo(() => {
-    const out: Array<[number, number, number]> = [];
+  const transforms = useMemo(() => {
+    const out: KitTransform[] = [];
     const half = Math.floor(WORLD.blocksPerSide / 2);
     for (const line of ROAD_LINES) {
       for (let k = -half; k <= half; k++) {
         const c = k * WORLD.blockSize;
-        out.push([line + WORLD.roadWidth / 2 + 0.8, 0, c]);
-        out.push([c, 0, line + WORLD.roadWidth / 2 + 0.8]);
+        out.push({ x: line + WORLD.roadWidth / 2 + 0.9, z: c + 8, rotation: 0 });            // brazo hacia -x (la calle)
+        out.push({ x: c + 8, z: line + WORLD.roadWidth / 2 + 0.9, rotation: -Math.PI / 2 }); // brazo hacia -z
       }
     }
     return out;
   }, []);
-  const poles = useRef<THREE.InstancedMesh>(null!);
-  const bulbs = useRef<THREE.InstancedMesh>(null!);
-  const bulbMat = useRef<THREE.MeshStandardMaterial>(null!);
-  useEffect(() => {
-    const m = new THREE.Matrix4();
-    positions.forEach((p, i) => {
-      m.makeTranslation(p[0], 3.5, p[2]);
-      poles.current.setMatrixAt(i, m);
-      m.makeTranslation(p[0], 7.1, p[2]);
-      bulbs.current.setMatrixAt(i, m);
-    });
-    poles.current.instanceMatrix.needsUpdate = true;
-    bulbs.current.instanceMatrix.needsUpdate = true;
-  }, [positions]);
+  const positions = useMemo(() => transforms.map(t => [t.x, 0, t.z] as [number, number, number]), [transforms]);
   useFrame((_, dt) => {
-    if (bulbMat.current) bulbMat.current.emissiveIntensity = 0.15 + runtime.night * 2.2;
     lightAcc.current += dt;
     if (lightAcc.current > 0.3) {
       lightAcc.current = 0;
@@ -279,7 +252,7 @@ function StreetLights() {
         .slice(0, LAMP_LIGHT_COUNT);
       nearest.forEach((n, i) => {
         const l = lights.current[i];
-        if (l) l.position.set(n.pos[0], 6.6, n.pos[2]);
+        if (l) l.position.set(n.pos[0] - 1, 4.4, n.pos[2]);
       });
     }
     for (const l of lights.current) if (l) l.intensity = runtime.night * 55;
@@ -289,14 +262,7 @@ function StreetLights() {
       {Array.from({ length: LAMP_LIGHT_COUNT }).map((_, i) => (
         <pointLight key={i} ref={el => { if (el) lights.current[i] = el; }} position={[0, -50, 0]} intensity={0} distance={26} decay={2} color="#ffd98a" />
       ))}
-      <instancedMesh ref={poles} args={[undefined, undefined, positions.length]} castShadow>
-        <cylinderGeometry args={[0.09, 0.14, 7, 6]} />
-        <meshStandardMaterial color="#6a6f78" metalness={0.7} roughness={0.4} />
-      </instancedMesh>
-      <instancedMesh ref={bulbs} args={[undefined, undefined, positions.length]}>
-        <sphereGeometry args={[0.32, 8, 6]} />
-        <meshStandardMaterial ref={bulbMat} color="#fff2c0" emissive="#ffd777" emissiveIntensity={0.2} />
-      </instancedMesh>
+      <KitInstances name="kk_streetlight" transforms={transforms} scale={5} />
     </group>
   );
 }
@@ -456,6 +422,140 @@ function VendorKiosk() {
   );
 }
 
+function ClubDiamante() {
+  const owned = useGame(s => !!s.ownedBusinesses.club);
+  const neon = useRef<THREE.PointLight[]>([]);
+  const ball = useRef<THREE.Mesh>(null!);
+  const strips = useRef<THREE.MeshStandardMaterial[]>([]);
+  const { terrace, stage, bar, dj, building } = CLUB;
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    const on = 0.35 + runtime.night * 0.65;
+    neon.current.forEach((l, i) => { if (l) l.intensity = on * (12 + Math.sin(t * 3 + i * 1.7) * 6); });
+    if (ball.current) ball.current.rotation.y = t * 0.8;
+    strips.current.forEach((m, i) => { if (m) m.emissiveIntensity = on * (1.4 + Math.sin(t * 4 + i) * 0.6); });
+  });
+  const stripMat = (i: number, color: string) => (
+    <meshStandardMaterial ref={el => { if (el) strips.current[i] = el; }} color={color} emissive={color} emissiveIntensity={1.5} />
+  );
+  const fenceH = 1.1;
+  return (
+    <group>
+      {/* Suelo de la terraza */}
+      <mesh position={[terrace.x, 0.06, terrace.z]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[terrace.w, terrace.d]} />
+        <meshStandardMaterial color="#1a0f24" roughness={0.6} metalness={0.2} />
+      </mesh>
+      {/* Alfombra roja desde la calle */}
+      <mesh position={[building[0], 0.07, terrace.z - terrace.d / 2 - 4]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[4, 8]} />
+        <meshStandardMaterial color="#8a0f1f" roughness={0.9} />
+      </mesh>
+      {/* Postes de cordón */}
+      {[-2.6, 2.6].map(dx => [0, 3, 6].map(dz => (
+        <mesh key={`${dx}${dz}`} position={[building[0] + dx, 0.5, terrace.z - terrace.d / 2 - 1 - dz]} castShadow>
+          <cylinderGeometry args={[0.06, 0.1, 1, 8]} />
+          <meshStandardMaterial color="#ffd700" metalness={0.9} roughness={0.2} />
+        </mesh>
+      )))}
+      {/* Valla con neón (hueco en la entrada) */}
+      {([
+        [terrace.x - terrace.w / 2, terrace.z, 0.3, terrace.d],
+        [terrace.x + terrace.w / 2, terrace.z, 0.3, terrace.d],
+        [terrace.x - terrace.w / 4 - 1.5, terrace.z - terrace.d / 2, terrace.w / 2 - 3, 0.3],
+        [terrace.x + terrace.w / 4 + 1.5, terrace.z - terrace.d / 2, terrace.w / 2 - 3, 0.3],
+      ] as Array<[number, number, number, number]>).map(([x, z, w, d], i) => (
+        <group key={i}>
+          <mesh position={[x, fenceH / 2, z]} castShadow receiveShadow>
+            <boxGeometry args={[w, fenceH, d]} />
+            <meshStandardMaterial color="#2a1a35" roughness={0.5} metalness={0.3} />
+          </mesh>
+          <mesh position={[x, fenceH + 0.05, z]}>
+            <boxGeometry args={[w + 0.05, 0.08, d + 0.05]} />
+            {stripMat(i, i % 2 ? "#ff2d95" : "#28e0ff")}
+          </mesh>
+        </group>
+      ))}
+      {/* Escenario con barras y bola de espejos */}
+      <mesh position={[stage[0], 0.3, stage[2]]} castShadow receiveShadow>
+        <cylinderGeometry args={[3.6, 3.8, 0.6, 32]} />
+        <meshStandardMaterial color="#3a1f4a" roughness={0.3} metalness={0.4} />
+      </mesh>
+      <mesh position={[stage[0], 0.61, stage[2]]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[3.2, 3.6, 32]} />
+        {stripMat(4, "#ff2d95")}
+      </mesh>
+      {[-2.2, 2.2].map(dx => (
+        <mesh key={dx} position={[stage[0] + dx, 2.3, stage[2]]} castShadow>
+          <cylinderGeometry args={[0.06, 0.06, 3.4, 10]} />
+          <meshStandardMaterial color="#e8e8f0" metalness={1} roughness={0.15} />
+        </mesh>
+      ))}
+      <mesh position={[stage[0], 6.2, stage[2]]}>
+        <cylinderGeometry args={[0.02, 0.02, 2.4, 6]} />
+        <meshStandardMaterial color="#888" />
+      </mesh>
+      <mesh ref={ball} position={[stage[0], 4.8, stage[2]]} castShadow>
+        <icosahedronGeometry args={[0.55, 1]} />
+        <meshStandardMaterial color="#ffffff" metalness={1} roughness={0.05} flatShading />
+      </mesh>
+      {/* Barra y cabina del DJ (encima de los bloques de colisión) */}
+      <mesh position={[bar[0], 1.25, bar[2]]}>
+        <boxGeometry args={[5.1, 0.1, 2.1]} />
+        {stripMat(5, "#28e0ff")}
+      </mesh>
+      {[-1.6, -0.5, 0.6, 1.7].map(dx => (
+        <mesh key={dx} position={[bar[0] + dx, 1.5, bar[2] - 0.6]} castShadow>
+          <cylinderGeometry args={[0.08, 0.1, 0.4, 8]} />
+          <meshStandardMaterial color={["#3aa", "#fa3", "#a3f", "#3f8"][Math.abs(Math.round(dx * 2)) % 4]} transparent opacity={0.85} />
+        </mesh>
+      ))}
+      <mesh position={[dj[0], 1.25, dj[2]]}>
+        <boxGeometry args={[4.1, 0.1, 2.1]} />
+        {stripMat(6, "#ff2d95")}
+      </mesh>
+      {[-1.2, 1.2].map(dx => (
+        <mesh key={dx} position={[dj[0] + dx, 2.1, dj[2] + 0.4]} castShadow>
+          <boxGeometry args={[0.9, 1.2, 0.5]} />
+          <meshStandardMaterial color="#111" />
+        </mesh>
+      ))}
+      {/* Mesas y taburetes */}
+      {[[-48, 80], [-32, 80], [-48, 71], [-33, 68.5]].map(([x, z], i) => (
+        <group key={i} position={[x, 0, z]}>
+          <mesh position={[0, 0.5, 0]} castShadow><cylinderGeometry args={[0.08, 0.12, 1, 8]} /><meshStandardMaterial color="#c0c0c0" metalness={0.8} /></mesh>
+          <mesh position={[0, 1, 0]} castShadow><cylinderGeometry args={[0.7, 0.7, 0.06, 16]} /><meshStandardMaterial color="#2a2a30" metalness={0.5} roughness={0.2} /></mesh>
+          {[0, 1, 2].map(k => (
+            <mesh key={k} position={[Math.cos(k * 2.1) * 1.1, 0.3, Math.sin(k * 2.1) * 1.1]} castShadow>
+              <cylinderGeometry args={[0.25, 0.25, 0.6, 10]} />
+              <meshStandardMaterial color="#5a1f4a" />
+            </mesh>
+          ))}
+        </group>
+      ))}
+      {/* Neones de la fachada y rótulo */}
+      {[-9.5, 9.5].map((dx, i) => (
+        <mesh key={i} position={[building[0] + dx, 4.5, building[2] - 6.1]}>
+          <boxGeometry args={[0.15, 8.6, 0.15]} />
+          {stripMat(7 + i, "#ff2d95")}
+        </mesh>
+      ))}
+      <mesh position={[building[0], 8.8, building[2] - 6.1]}>
+        <boxGeometry args={[19.5, 0.15, 0.15]} />
+        {stripMat(9, "#28e0ff")}
+      </mesh>
+      <Sign text="CLUB DIAMANTE" position={[building[0], 11.5, building[2] - 6]} color="#ff2d95" icon="💎" scale={2.2} />
+      {owned && <Sign text="Propiedad de Shopy Crafter" position={[building[0], 13.5, building[2] - 6]} color="#ffd700" scale={1.2} />}
+      {/* Luces de neón */}
+      {[["#ff2d95", -8, 4, 74], ["#28e0ff", 8, 4, 74], ["#ff2d95", 0, 5, 82], ["#a13cff", -10, 3, 82], ["#28e0ff", 10, 3, 82]].map(([c, dx, y, z], i) => (
+        <pointLight key={i} ref={el => { if (el) neon.current[i] = el; }} position={[terrace.x + (dx as number), y as number, z as number]} color={c as string} intensity={10} distance={22} decay={2} />
+      ))}
+      {/* Arbustos decorativos */}
+      {[[-56, 66], [-24, 66], [-56, 86], [-24, 86]].map(([x, z], i) => <KitModel key={i} name="kk_bush" position={[x, 0.05, z]} scale={5} />)}
+    </group>
+  );
+}
+
 function Horizon() {
   const hills = useMemo(() => {
     const out: Array<{ a: number; r: number; h: number; w: number }> = [];
@@ -509,6 +609,12 @@ export function World() {
       <Helipad />
       <VendorKiosk />
       <Lair position={[80, 0, -92]} name="Guarida de Tuétano" color="#ff3030" />
+      <KitModel name="kk_watertower" position={[86, 12.3, -95]} scale={5} />
+      <ClubDiamante />
+      {/* Bancos de la plaza */}
+      {[[-10, 16, 0.6], [10, 16, -0.6], [-12, 4, Math.PI / 2], [12, 4, -Math.PI / 2]].map(([x, z, r], i) => (
+        <KitModel key={`pb${i}`} name="kk_bench" position={[x, 0.07, z]} rotation={r} scale={5} />
+      ))}
       <Lair position={[-120, 0, 30]} name="Fortaleza Carmesí" color="#ff5050" />
       <Lair position={[120, 0, -90]} name="Bastión Sombrío" color="#c040ff" />
       <Lair position={[0, 0, -128]} name="Torre de Hielo" color="#5ac8ff" />

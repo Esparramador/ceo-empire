@@ -98,6 +98,7 @@ export const runtime = {
   lastKillerId: null as string | null,
   wantedTimer: 0,
   nearestObjective: null as THREE.Vector3 | null,
+  chase: { active: false, vehicleId: null as string | null, waypoint: 0, contact: 0, caught: false },
 };
 
 export function makeNpcRuntime(id: string, pos: Vec3, hp: number): NpcRuntime {
@@ -110,7 +111,7 @@ export function makeNpcRuntime(id: string, pos: Vec3, hp: number): NpcRuntime {
 }
 
 /** Restablece todo el estado en tiempo real (nueva partida o carga). */
-export function resetRuntime(playerPos: Vec3, opts?: { defeatedBosses?: string[]; hiredNpcIds?: string[]; hour?: number }) {
+export function resetRuntime(playerPos: Vec3, opts?: { defeatedBosses?: string[]; hiredNpcIds?: string[]; hour?: number; hiddenNpcIds?: string[] }) {
   const p = runtime.player;
   p.pos.set(playerPos[0], 0, playerPos[2]);
   p.vel.set(0, 0, 0);
@@ -122,7 +123,7 @@ export function resetRuntime(playerPos: Vec3, opts?: { defeatedBosses?: string[]
   runtime.npcs = {};
   for (const cfg of NPC_CONFIGS) {
     const n = makeNpcRuntime(cfg.id, cfg.pos, cfg.health);
-    if (opts?.defeatedBosses?.includes(cfg.id)) { n.state = "dead"; n.hp = 0; n.deadTimer = 9999; }
+    if (opts?.defeatedBosses?.includes(cfg.id) || opts?.hiddenNpcIds?.includes(cfg.id)) { n.state = "dead"; n.hp = 0; n.deadTimer = 9999; }
     if (opts?.hiredNpcIds?.includes(cfg.id)) n.hired = true;
     runtime.npcs[cfg.id] = n;
   }
@@ -145,6 +146,7 @@ export function resetRuntime(playerPos: Vec3, opts?: { defeatedBosses?: string[]
   runtime.lastKillerId = null;
   runtime.wantedTimer = 0;
   runtime.nearestObjective = null;
+  runtime.chase = { active: false, vehicleId: null, waypoint: 0, contact: 0, caught: false };
   input.keys.clear();
   input.attackHeld = false; input.attackPressed = false;
   input.mouseDX = 0; input.mouseDY = 0;

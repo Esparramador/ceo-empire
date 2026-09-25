@@ -2,7 +2,7 @@
 // Interacciones con NPCs: diálogo, misiones, tienda y contratación.
 // ─────────────────────────────────────────────────────────────────────────────
 import { NPC_CONFIGS, SHOP_ITEMS, HIRE_COST, MAX_EMPLOYEES, missionById } from "../lib/gameData";
-import { useGame, type DialogOption } from "../lib/gameStore";
+import { useGame, availableSideMissions, type DialogOption } from "../lib/gameStore";
 import { runtime } from "../lib/world";
 import { sfx } from "../lib/audio";
 
@@ -31,12 +31,33 @@ export function talkTo(npcId: string) {
   const available = missionById(store.availableMissionId);
   const active = missionById(store.activeMissionId);
 
-  // Da la misión disponible si este NPC es quien la encarga
-  if (available && available.giverNpcId === npcId && !active) {
-    store.openDialog(npcId, cfg.name, `📋 ${available.title}\n\n${available.briefing}`, [
-      { label: "✅ Aceptar misión", onSelect: () => { useGame.getState().acceptMission(available.id); useGame.getState().closeDialog(); } },
-      { label: "Ahora no", onSelect: () => store.closeDialog() },
+  const briefingDialog = (m: NonNullable<typeof available>) => {
+    useGame.getState().openDialog(npcId, cfg.name, `📋 ${m.title}\n\n${m.briefing}`, [
+      { label: "✅ Aceptar misión", onSelect: () => { useGame.getState().acceptMission(m.id); useGame.getState().closeDialog(); } },
+      { label: "Ahora no", onSelect: () => useGame.getState().closeDialog() },
     ]);
+  };
+
+  // Misiones que ofrece este NPC (principal y/o secundarias)
+  const mainHere = available && available.giverNpcId === npcId && !active ? available : null;
+  const sides = active ? [] : availableSideMissions(store).filter(m => m.giverNpcId === npcId);
+
+  if (mainHere && sides.length === 0) { briefingDialog(mainHere); return; }
+
+  if (mainHere || sides.length) {
+    const line = cfg.dialogue[n.dialogueIndex % cfg.dialogue.length];
+    n.dialogueIndex++;
+    const options: DialogOption[] = [];
+    if (mainHere) options.push({ label: `❗ Misión principal: ${mainHere.title}`, hint: `Recompensa $${mainHere.rewardMoney.toLocaleString("es-ES")}`, onSelect: () => briefingDialog(mainHere) });
+    for (const m of sides) options.push({
+      label: `❔ Misión secundaria: ${m.title}${m.cost ? ` (cuesta $${m.cost.toLocaleString("es-ES")})` : ""}`,
+      hint: `Recompensa $${m.rewardMoney.toLocaleString("es-ES")}`,
+      onSelect: () => briefingDialog(m),
+    });
+    if (cfg.type === "neutral" && !store.hiredNpcIds.includes(npcId)) {
+      options.push({ label: `🤝 Contratar — $${HIRE_COST.toLocaleString("es-ES")}`, hint: "+10 % de ingresos pasivos", disabled: store.employees >= MAX_EMPLOYEES, onSelect: () => { if (useGame.getState().hireNpc(npcId)) useGame.getState().closeDialog(); } });
+    }
+    store.openDialog(npcId, cfg.name, line, [...options, close]);
     return;
   }
 

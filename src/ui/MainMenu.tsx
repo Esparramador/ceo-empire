@@ -27,15 +27,15 @@ export function MainMenu() {
       <div className="menu-bg" />
       <div className="menu-content">
         <h1 className="game-title">CEO EMPIRE</h1>
-        <p className="game-subtitle">Shopy Crafter — Mundo abierto</p>
+        <p className="game-subtitle">La historia del CEO de Shopy Crafter</p>
 
         {!webgl && (
           <div className="warning-box">Tu navegador no soporta WebGL. Prueba con Chrome, Edge o Firefox actualizados.</div>
         )}
 
         <p className="menu-intro">
-          Conviértete en el CEO más poderoso de la ciudad: completa 12 misiones, compra y mejora 8 negocios,
-          contrata empleados, conduce, derrota a los CEOs rivales y cierra el trato del siglo.
+          De un pequeño marketplace para creadores a un imperio que cotiza en bolsa: 14 misiones principales en 5 actos,
+          9 misiones secundarias, 9 negocios (incluido el Club Diamante), coches, jefes rivales y una ciudad viva.
         </p>
 
         <div className="menu-label">Elige tu CEO</div>

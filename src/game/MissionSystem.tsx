@@ -6,7 +6,7 @@ import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { BUSINESSES, NPC_CONFIGS, missionById, type Mission } from "../lib/gameData";
-import { useGame } from "../lib/gameStore";
+import { useGame, availableSideMissions } from "../lib/gameStore";
 import { runtime, dist2D } from "../lib/world";
 import { textTexture } from "../lib/textures";
 
@@ -14,12 +14,24 @@ import { textTexture } from "../lib/textures";
 export function objectivePoint(m: Mission | undefined, s: ReturnType<typeof useGame.getState>): THREE.Vector3 | null {
   const p = runtime.player.pos;
   if (!m) {
-    const avail = missionById(s.availableMissionId);
+    const avail = missionById(s.availableMissionId) ?? availableSideMissions(s)[0];
     const giver = avail && NPC_CONFIGS.find(n => n.id === avail.giverNpcId);
     const g = giver && runtime.npcs[giver.id];
     return g ? g.pos.clone() : null;
   }
   switch (m.type) {
+    case "race": case "waypoints": {
+      const wp = m.waypoints?.[s.missionWaypoint];
+      return wp ? new THREE.Vector3(wp[0], 0, wp[2]) : null;
+    }
+    case "chase": {
+      const v = m.targetVehicleId ? runtime.vehicles[m.targetVehicleId] : null;
+      return v ? v.pos.clone() : null;
+    }
+    case "invest": {
+      const g = runtime.npcs[m.giverNpcId];
+      return g ? g.pos.clone() : null;
+    }
     case "goto": case "deliver": return m.markerPos ? new THREE.Vector3(m.markerPos[0], 0, m.markerPos[2]) : null;
     case "buy": { const b = BUSINESSES.find(x => x.id === m.targetBusiness); return b ? new THREE.Vector3(b.pos[0], 0, b.pos[2]) : null; }
     case "kill_group": {
@@ -108,9 +120,35 @@ function ObjectiveBeacon() {
   );
 }
 
+function Checkpoints() {
+  const active = useGame(s => missionById(s.activeMissionId));
+  const idx = useGame(s => s.missionWaypoint);
+  const wps = active?.waypoints;
+  if (!wps || (active.type !== "race" && active.type !== "waypoints")) return null;
+  return (
+    <group>
+      {wps.map((w, i) => i >= idx && (
+        <group key={i} position={[w[0], 0, w[2]]}>
+          <mesh position={[0, 0.1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[4.5, 5.5, 32]} />
+            <meshBasicMaterial color={i === idx ? active.color : "#ffffff"} transparent opacity={i === idx ? 0.9 : 0.3} side={THREE.DoubleSide} />
+          </mesh>
+          {i === idx && (
+            <mesh position={[0, 6, 0]}>
+              <cylinderGeometry args={[4.6, 5.4, 12, 24, 1, true]} />
+              <meshBasicMaterial color={active.color} transparent opacity={0.12} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+            </mesh>
+          )}
+        </group>
+      ))}
+    </group>
+  );
+}
+
 export function MissionSystem() {
   const timerAcc = useRef(0);
   const objAcc = useRef(0);
+  const hintShown = useRef(false);
 
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
@@ -128,7 +166,10 @@ export function MissionSystem() {
       if (timerAcc.current >= 0.25) {
         const left = s.missionTimeLeft - timerAcc.current;
         timerAcc.current = 0;
-        if (left <= 0) { s.failMission("se acabó el tiempo"); return; }
+        if (left <= 0) {
+          if (m.type === "invest") { s.completeMission(); return; }
+          s.failMission("se acabó el tiempo"); return;
+        }
         s.setMissionTimeLeft(left);
       }
     }
@@ -137,8 +178,28 @@ export function MissionSystem() {
     let done = false;
     switch (m.type) {
       case "goto": case "deliver":
-        if (m.markerPos && Math.hypot(m.markerPos[0] - p.x, m.markerPos[2] - p.z) < 4.5) done = true;
+        if (m.markerPos && Math.hypot(m.markerPos[0] - p.x, m.markerPos[2] - p.z) < 4.5) {
+          if (m.requireVehicleId && runtime.player.inVehicleId !== m.requireVehicleId) {
+            if (!hintShown.current) { hintShown.current = true; s.notify("Tienes que llegar conduciendo el vehículo indicado.", "warning"); }
+          } else done = true;
+        }
         break;
+      case "race": case "waypoints": {
+        const wp = m.waypoints?.[s.missionWaypoint];
+        if (!wp) { done = true; break; }
+        if (Math.hypot(wp[0] - p.x, wp[2] - p.z) < 6) {
+          if (m.requireVehicle && !runtime.player.inVehicleId) {
+            if (!hintShown.current) { hintShown.current = true; s.notify("Los puntos de control solo cuentan en coche.", "warning"); }
+          } else {
+            s.addMissionWaypoint();
+            if (s.missionWaypoint + 1 >= (m.waypoints?.length ?? 0)) done = true;
+            else s.notify(`Punto de control ${s.missionWaypoint + 1}/${m.waypoints?.length}`, "info");
+          }
+        }
+        break;
+      }
+      case "chase": done = runtime.chase.caught; break;
+      case "invest": break;
       case "buy": done = !!s.ownedBusinesses[m.targetBusiness ?? ""]; break;
       case "kill_group": done = s.missionKills >= (m.targetCount ?? 1); break;
       case "kill_boss": done = (m.targetBosses ?? []).every(b => s.defeatedBosses.includes(b)); break;
@@ -146,8 +207,8 @@ export function MissionSystem() {
       case "collect": done = s.missionCollected >= (m.targetCount ?? 1); break;
       case "hire": done = s.employees - s.missionHiresAtStart >= (m.targetCount ?? 1); break;
     }
-    if (done) s.completeMission();
+    if (done) { hintShown.current = false; s.completeMission(); }
   });
 
-  return <ObjectiveBeacon />;
+  return <><ObjectiveBeacon /><Checkpoints /></>;
 }

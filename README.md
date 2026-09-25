@@ -2,18 +2,32 @@
 
 > Juego 3D de mundo abierto en el navegador, estilo GTA — React Three Fiber + Zustand + Vite.
 
-Parte de la plataforma **Shopy Crafter**. Eres un CEO que construye su imperio en una ciudad
-de 49 manzanas: misiones, negocios con ingresos pasivos, empleados, coches, combate, policía,
-ciclo día/noche y guardado automático.
+La historia del CEO de **Shopy Crafter** (shopycrafter.com): de un pequeño marketplace para
+creadores a un imperio que sale a bolsa. Ciudad de 49 manzanas, 14 misiones principales en
+5 actos, 9 misiones secundarias, negocios con ingresos pasivos, empleados, coches, combate,
+policía, el Club Diamante, ciclo día/noche y guardado automático.
+
+## 📖 Historia
+
+- **Acto I — El garaje**: recupera la base de datos de los primeros mil crafters, abre el primer showroom y firma la campaña de marketing.
+- **Acto II — Competencia sucia**: Lord Tuétano vende copias baratas de los productos de tus crafters con un ejército de esqueletos. Límpialo del noreste.
+- **Acto III — Crecimiento**: expansión a 4 negocios, recuperación de datos filtrados, contratación de talento y compra del Club Diamante para sentarte con los inversores.
+- **Acto IV — Guerra de mercado**: Corporación Titán contrata mercenarios (Guerrero Carmesí y Sombrío), llegas a 6 negocios y descubres al topo: Víctor Salas, tu CFO, huye con el disco maestro. Persecución en coche.
+- **Acto V — La salida a bolsa**: destruye la IA-dragón que protege el centro de datos de Titán y firma la salida a bolsa en el helipuerto.
+
+Secundarias: reparto express, dos carreras contrarreloj, taxi nocturno, rescate de la becaria,
+limpiar el club de matones, cazarrecompensas, el reto del bárbaro en el ring clandestino,
+campaña de carteles e inversión ángel en una artesana.
 
 ## 🎮 Jugabilidad
 
 - **Ciudad procedural** de 7×7 manzanas con calles, aceras, farolas con luz real, parques,
   rascacielos con ventanas iluminadas de noche, HQ, helipuerto, kiosco del Vendedor y 4 guaridas.
-- **12 misiones con historia**: recoger, comprar, entrega cronometrada, eliminar matones,
-  jefes, expansión, recolección de chips, contratación… hasta «CEO del Año» y pantalla de victoria.
-- **8 negocios comprables y mejorables** (3 niveles) que generan dinero cada segundo;
-  **6 empleados** contratables (+10 % ingresos cada uno).
+- **14 misiones principales en 5 actos + 9 secundarias**: entregas cronometradas, carreras por
+  puntos de control, persecución en coche con IA, eliminar grupos, jefes, expansión, recolección,
+  contratación, inversión con retorno… hasta la salida a bolsa y la pantalla de victoria.
+- **9 negocios comprables y mejorables** (3 niveles) que generan dinero cada segundo, incluido
+  el **Club Diamante** (ingresos x2 de noche, bailarinas, DJ, barra, neones); **6 empleados** (+10 % cada uno).
 - **Combate**: puños, bate y pistola con munición; enemigos con vida, botín, reaparición;
   **4 jefes** únicos (Lord Tuétano, Guerrero Carmesí, Guerrero Sombrío, Dragón de Hielo) con barra de vida.
 - **Policía y nivel de búsqueda** (5 estrellas) por atacar civiles; se disipa con el tiempo.
@@ -23,8 +37,9 @@ ciclo día/noche y guardado automático.
 - **HUD completo**: salud, karma, dinero, ingresos, búsqueda, reloj, arma, misión, cronómetro,
   pistas contextuales, notificaciones, barra de jefe, minimapa con objetivo y distancia.
 - **Modelos 3D propios** (CEO Crafter jugable, Lord Tuétano, Guerrero Carmesí, Guerrero Sombrío y
-  Dragón de Hielo, optimizados a WebP y 5,7 MB en total) más **personajes generados por código**
-  (3 CEOs jugables, 12 ciudadanos, matones y policías) con animaciones.
+  Dragón de Hielo) + **assets CC0/MIT** (KayKit City Builder Bits, KayKit Adventurers y Skeletons
+  con animaciones esqueléticas, Kenney City Kit) + **personajes generados por código** para el
+  resto (CEOs jugables, ciudadanos, bailarinas, policía…). Todo optimizado a WebP: ~12 MB.
 - **Sonido sintetizado** (WebAudio, sin ficheros): golpes, disparos, caja, motor, sirena, jingles.
 - **Guardado automático** en el navegador y botón «Continuar»; muerte con reaparición en el hospital.
 
@@ -61,13 +76,21 @@ npm run preview    # sirve dist/
 Variables opcionales: `PORT` (puerto) y `BASE_PATH` (ruta base para desplegar en subcarpeta).
 Requiere un navegador con WebGL (Chrome, Edge o Firefox actualizados). Pensado para escritorio.
 
-## 🧩 Modelos 3D
+## 🧩 Modelos 3D y licencias
 
-Los modelos de `public/assets/models/` se cargan automáticamente (ver
-[`public/assets/models/README.md`](public/assets/models/README.md)). Los bustos cortados por la
-cintura reciben piernas procedurales animadas; la orientación, altura y modo de cada modelo se
-ajustan en `MODEL_CONFIG` (`src/game/Characters.tsx`). Si un modelo falta o falla, se usa el
-personaje procedural equivalente. Para añadir más, copia el `.glb` (o `.stl`) con el nombre esperado.
+- `public/assets/models/` — modelos propios del autor (ver su README). Los bustos reciben piernas
+  procedurales animadas; orientación/altura/modo en `MODEL_CONFIG` (`src/game/Characters.tsx`).
+- `public/assets/kit/` — assets de terceros con licencia libre (CC0 / MIT), convertidos a GLB+WebP
+  y con solo los clips de animación usados. Orígenes y licencias en
+  [`public/assets/kit/LICENSES.md`](public/assets/kit/LICENSES.md):
+  [KayKit City Builder Bits](https://github.com/KayKit-Game-Assets/KayKit-City-Builder-Bits-1.0),
+  [KayKit Adventurers](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0),
+  [KayKit Skeletons](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0),
+  [Kenney Starter Kit City Builder](https://github.com/KenneyNL/Starter-Kit-City-Builder).
+- Los personajes animados usan los clips por nombre (`Idle`, `Walking_A`, `Running_A`,
+  `*_Attack_*`, `Hit_A`, `Death_A`, `Cheer`, `Sit_Chair_Idle`). Cualquier GLB con esos nombres
+  de clip funciona sin cambios de código.
+- No se usan assets de GTA, WoW, LoL ni de ningún juego comercial: son propiedad de sus editores.
 
 ## 🏗️ Stack
 

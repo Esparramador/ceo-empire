@@ -128,7 +128,7 @@ export function MiniMap() {
     };
     draw();
     return () => cancelAnimationFrame(raf);
-  }, []);
+  }, [phase]);
 
   if (phase !== "playing" && phase !== "paused") return null;
 

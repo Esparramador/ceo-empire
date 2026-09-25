@@ -4,14 +4,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { create } from "zustand";
 import {
-  BUSINESSES, MISSIONS, WEAPONS, SHOP_ITEMS, CHARACTERS, NPC_CONFIGS,
+  BUSINESSES, MISSIONS, SIDE_MISSIONS, WEAPONS, SHOP_ITEMS, CHARACTERS, NPC_CONFIGS, STORY,
   MAX_BUSINESS_LEVEL, MAX_EMPLOYEES, HIRE_COST, EMPLOYEE_BONUS,
-  businessIncome, upgradeCost, missionById, characterByKey, type Vec3,
+  businessIncome, upgradeCost, missionById, characterByKey, actOfMission, type Vec3,
 } from "./gameData";
 import { runtime, resetRuntime } from "./world";
 import { sfx, setMuted } from "./audio";
 
-export type Phase = "menu" | "playing" | "paused" | "dead" | "victory";
+export type Phase = "menu" | "intro" | "playing" | "paused" | "dead" | "victory";
 export type ItemType = "weapon" | "health" | "ammo" | "quest" | "perk";
 
 export interface InventoryItem {
@@ -71,6 +71,7 @@ interface Progress {
   missionCollected: number;
   missionHiresAtStart: number;
   missionTimeLeft: number | null;
+  missionWaypoint: number;
   ownedBusinesses: Record<string, number>;
   employees: number;
   hiredNpcIds: string[];
@@ -101,6 +102,7 @@ interface GameStore extends Progress {
   vehicleSpeed: number;
   bossFight: BossFight | null;
   lastMissionResult: { title: string; success: boolean; reward: number } | null;
+  actBanner: string | null;
 
   // partida
   newGame(characterKey: string): void;
@@ -144,6 +146,9 @@ interface GameStore extends Progress {
   setMissionTimeLeft(t: number | null): void;
   addMissionKill(): void;
   addMissionCollected(): void;
+  addMissionWaypoint(): void;
+  clearActBanner(): void;
+  startPlaying(): void;
   registerKill(npcId: string): void;
   clearMissionResult(): void;
 
@@ -186,6 +191,7 @@ function freshProgress(characterKey: string): Progress {
     missionCollected: 0,
     missionHiresAtStart: 0,
     missionTimeLeft: null,
+    missionWaypoint: 0,
     ownedBusinesses: {},
     employees: 0,
     hiredNpcIds: [],
@@ -216,7 +222,7 @@ function pickProgress(s: GameStore): Progress {
     wantedLevel: s.wantedLevel, inventory: s.inventory, weapons: s.weapons, activeWeapon: s.activeWeapon, ammo: s.ammo,
     armor: s.armor, activeMissionId: s.activeMissionId, availableMissionId: s.availableMissionId,
     completedMissions: s.completedMissions, missionKills: s.missionKills, missionCollected: s.missionCollected,
-    missionHiresAtStart: s.missionHiresAtStart, missionTimeLeft: s.missionTimeLeft, ownedBusinesses: s.ownedBusinesses,
+    missionHiresAtStart: s.missionHiresAtStart, missionTimeLeft: s.missionTimeLeft, missionWaypoint: s.missionWaypoint, ownedBusinesses: s.ownedBusinesses,
     employees: s.employees, hiredNpcIds: s.hiredNpcIds, defeatedBosses: s.defeatedBosses, killCount: s.killCount,
     civiliansHarmed: s.civiliansHarmed, totalEarned: s.totalEarned, playTime: s.playTime, deaths: s.deaths,
     savedPlayerPos: s.savedPlayerPos, savedHour: s.savedHour,
@@ -239,19 +245,25 @@ export const useGame = create<GameStore>((set, get) => ({
   vehicleSpeed: 0,
   bossFight: null,
   lastMissionResult: null,
+  actBanner: null,
 
   // ── Partida ────────────────────────────────────────────────────────────────
   newGame: (characterKey) => {
     const p = freshProgress(characterKey);
     resetRuntime(p.savedPlayerPos, { hour: p.savedHour });
     set({
-      ...p, phase: "playing", showInventory: false, showEmpire: false, showHelp: false,
+      ...p, phase: "intro", showInventory: false, showEmpire: false, showHelp: false,
       dialog: { open: false, npcId: null, name: "", text: "", options: [] },
-      notifications: [], inVehicle: false, bossFight: null, lastMissionResult: null,
+      notifications: [], inVehicle: false, bossFight: null, lastMissionResult: null, actBanner: null,
       nearby: { npcId: null, vehicleId: null, businessId: null },
     });
-    get().notify("Habla con el Director García (marcador ! amarillo) para tu primera misión.", "info");
     get().saveGame();
+  },
+
+  startPlaying: () => {
+    set({ phase: "playing", actBanner: STORY.acts[0].title });
+    get().notify("Habla con el Director García (marcador ! amarillo) para tu primera misión.", "info");
+    get().notify("Los marcadores «?» azules son misiones secundarias.", "info");
   },
 
   continueGame: () => {
@@ -259,18 +271,21 @@ export const useGame = create<GameStore>((set, get) => ({
     if (!save) return;
     const { version: _v, savedAt: _a, ...progress } = save;
     void _v; void _a;
-    resetRuntime(progress.savedPlayerPos, { defeatedBosses: progress.defeatedBosses, hiredNpcIds: progress.hiredNpcIds, hour: progress.savedHour });
+    resetRuntime(progress.savedPlayerPos, { defeatedBosses: progress.defeatedBosses, hiredNpcIds: progress.hiredNpcIds, hour: progress.savedHour, hiddenNpcIds: hiddenNpcs(progress.completedMissions, progress.activeMissionId) });
     // Una misión cronometrada no sobrevive a la recarga: se reinicia como disponible
     let activeMissionId = progress.activeMissionId;
     let availableMissionId = progress.availableMissionId;
     const m = missionById(activeMissionId);
-    if (m && (m.type === "deliver" || m.type === "collect")) { availableMissionId = m.id; activeMissionId = null; }
+    if (m && (m.type === "deliver" || m.type === "collect" || m.type === "race" || m.type === "waypoints" || m.type === "chase" || m.type === "invest")) {
+      if (m.category === "main") availableMissionId = m.id;
+      activeMissionId = null;
+    }
     set({
-      ...progress, activeMissionId, availableMissionId, missionTimeLeft: null,
+      ...progress, activeMissionId, availableMissionId, missionTimeLeft: null, missionWaypoint: 0,
       health: Math.max(progress.health, 30),
       phase: "playing", showInventory: false, showEmpire: false, showHelp: false,
       dialog: { open: false, npcId: null, name: "", text: "", options: [] },
-      notifications: [], inVehicle: false, bossFight: null, lastMissionResult: null,
+      notifications: [], inVehicle: false, bossFight: null, lastMissionResult: null, actBanner: null,
       nearby: { npcId: null, vehicleId: null, businessId: null },
     });
     get().notify("Partida cargada. ¡Bienvenido de nuevo, CEO!", "success");
@@ -294,15 +309,15 @@ export const useGame = create<GameStore>((set, get) => ({
   respawn: () => {
     const s = get();
     const fee = Math.floor(s.money * 0.1);
-    resetRuntime([4, 0, 10], { defeatedBosses: s.defeatedBosses, hiredNpcIds: s.hiredNpcIds, hour: runtime.hour });
+    resetRuntime([4, 0, 10], { defeatedBosses: s.defeatedBosses, hiredNpcIds: s.hiredNpcIds, hour: runtime.hour, hiddenNpcIds: hiddenNpcs(s.completedMissions, s.activeMissionId) });
     const m = missionById(s.activeMissionId);
-    const resetMission = m && (m.type === "deliver" || m.type === "collect" || m.type === "kill_group" || m.type === "kill_boss");
+    const resetMission = m && m.type !== "own_count" && m.type !== "hire" && m.type !== "buy" && m.type !== "invest";
     set({
       phase: "playing", health: s.maxHealth, wantedLevel: 0, money: s.money - fee, deaths: s.deaths + 1,
-      inVehicle: false, bossFight: null, missionTimeLeft: null,
+      inVehicle: false, bossFight: null, missionTimeLeft: resetMission ? null : s.missionTimeLeft,
       activeMissionId: resetMission ? null : s.activeMissionId,
-      availableMissionId: resetMission ? s.activeMissionId : s.availableMissionId,
-      missionKills: 0, missionCollected: 0,
+      availableMissionId: resetMission && m?.category === "main" ? s.activeMissionId : s.availableMissionId,
+      missionKills: 0, missionCollected: 0, missionWaypoint: 0,
     });
     get().notify(`Has despertado en el hospital. Factura: $${fee.toLocaleString("es-ES")}.`, "warning");
     if (resetMission) get().notify("La misión se ha cancelado. Vuelve a hablar con quien te la encargó.", "info");
@@ -361,7 +376,7 @@ export const useGame = create<GameStore>((set, get) => ({
     let total = 0;
     for (const b of BUSINESSES) {
       const lvl = s.ownedBusinesses[b.id];
-      if (lvl) total += businessIncome(b, lvl);
+      if (lvl) total += businessIncome(b, lvl) * (b.id === "club" ? 1 + runtime.night : 1);
     }
     total *= 1 + s.employees * EMPLOYEE_BONUS;
     if (s.selectedCharacter === "alec") total *= 1.1;
@@ -487,44 +502,67 @@ export const useGame = create<GameStore>((set, get) => ({
     const m = missionById(id);
     if (!m) return;
     const s = get();
+    if (s.activeMissionId) { get().notify("Ya tienes una misión activa. Termínala o abandónala desde el menú de pausa.", "warning"); return; }
+    if (m.cost) {
+      if (!get().spendMoney(m.cost)) { get().notify(`Necesitas $${m.cost.toLocaleString("es-ES")} para esta misión.`, "warning"); return; }
+    }
     // activa los chips de datos si es la misión de recolección
     if (m.type === "collect") {
       for (const p of Object.values(runtime.pickups)) if (p.isChip) { p.active = true; p.respawnTimer = 0; }
     }
+    if (m.type === "chase" && m.targetVehicleId) {
+      runtime.chase = { active: true, vehicleId: m.targetVehicleId, waypoint: 0, contact: 0, caught: false };
+      const v = runtime.vehicles[m.targetVehicleId];
+      if (v) v.speed = 6;
+      const mole = runtime.npcs.npc_victor;
+      if (mole) { mole.state = "dead"; mole.deadTimer = 9999; }
+    }
+    const act = m.category === "main" ? actOfMission(id) : undefined;
+    const firstOfAct = act && act.missions[0] === id;
     set({
-      activeMissionId: id, availableMissionId: null, missionKills: 0, missionCollected: 0,
+      activeMissionId: id, availableMissionId: m.category === "main" ? null : s.availableMissionId,
+      missionKills: 0, missionCollected: 0, missionWaypoint: 0,
       missionHiresAtStart: s.employees, missionTimeLeft: m.timeLimit ?? null, lastMissionResult: null,
+      actBanner: firstOfAct ? act.title : s.actBanner,
     });
     sfx.missionStart();
-    get().notify(`🎯 Misión aceptada: ${m.title}`, "info");
+    get().notify(`🎯 ${m.category === "main" ? "Misión principal" : "Misión secundaria"} aceptada: ${m.title}`, "info");
   },
 
   completeMission: () => {
     const s = get();
     const m = missionById(s.activeMissionId);
     if (!m) return;
-    const nextId = m.nextMissionId;
+    const nextId = m.category === "main" ? m.nextMissionId : s.availableMissionId;
+    if (m.type === "chase") { runtime.chase.active = false; }
     set({
       completedMissions: [...s.completedMissions, m.id],
       activeMissionId: null,
       availableMissionId: nextId,
       missionTimeLeft: null,
-      missionKills: 0, missionCollected: 0,
+      missionKills: 0, missionCollected: 0, missionWaypoint: 0,
       lastMissionResult: { title: m.title, success: true, reward: m.rewardMoney },
     });
     get().addMoney(m.rewardMoney, true);
     get().addKarma(m.rewardKarma);
     if (m.id === "m1") get().addItem({ id: "briefcase", name: "Maletín de Negocios", type: "quest", quantity: 1, icon: "💼", description: "Contiene los datos del inversor." });
     if (m.type === "collect") for (const p of Object.values(runtime.pickups)) if (p.isChip) p.active = false;
-    if (nextId === null) {
+    if (m.category === "main" && nextId === null) {
       sfx.victory();
       set({ phase: "victory" });
     } else {
       sfx.missionComplete();
       get().notify(`✅ ${m.completeText} +$${m.rewardMoney.toLocaleString("es-ES")}`, "success");
-      const next = missionById(nextId);
-      const giver = NPC_CONFIGS.find(n => n.id === next?.giverNpcId);
-      if (next && giver) get().notify(`Nueva misión disponible: habla con ${giver.name}.`, "info");
+      if (m.category === "main") {
+        const next = missionById(nextId);
+        const giver = NPC_CONFIGS.find(n => n.id === next?.giverNpcId);
+        if (next && giver) get().notify(`Nueva misión principal: habla con ${giver.name}.`, "info");
+        const unlocked = SIDE_MISSIONS.filter(x => x.unlockAfter === m.id);
+        for (const u of unlocked) {
+          const g = NPC_CONFIGS.find(n => n.id === u.giverNpcId);
+          get().notify(`Nueva misión secundaria «${u.title}»: habla con ${g?.name ?? "alguien"} (marcador ?).`, "info");
+        }
+      }
     }
     get().saveGame();
   },
@@ -534,7 +572,8 @@ export const useGame = create<GameStore>((set, get) => ({
     const m = missionById(s.activeMissionId);
     if (!m) return;
     if (m.type === "collect") for (const p of Object.values(runtime.pickups)) if (p.isChip) p.active = false;
-    set({ activeMissionId: null, availableMissionId: m.id, missionTimeLeft: null, missionKills: 0, missionCollected: 0, lastMissionResult: { title: m.title, success: false, reward: 0 } });
+    if (m.type === "chase") runtime.chase.active = false;
+    set({ activeMissionId: null, availableMissionId: m.category === "main" ? m.id : s.availableMissionId, missionTimeLeft: null, missionKills: 0, missionCollected: 0, missionWaypoint: 0, lastMissionResult: { title: m.title, success: false, reward: 0 } });
     sfx.missionFail();
     get().notify(`❌ Misión fallida: ${reason}. Vuelve a hablar con quien te la encargó.`, "danger");
   },
@@ -544,13 +583,16 @@ export const useGame = create<GameStore>((set, get) => ({
     const m = missionById(s.activeMissionId);
     if (!m) return;
     if (m.type === "collect") for (const p of Object.values(runtime.pickups)) if (p.isChip) p.active = false;
-    set({ activeMissionId: null, availableMissionId: m.id, missionTimeLeft: null, missionKills: 0, missionCollected: 0 });
+    if (m.type === "chase") runtime.chase.active = false;
+    set({ activeMissionId: null, availableMissionId: m.category === "main" ? m.id : s.availableMissionId, missionTimeLeft: null, missionKills: 0, missionCollected: 0, missionWaypoint: 0 });
     get().notify(`Misión abandonada: ${m.title}.`, "warning");
   },
 
   setMissionTimeLeft: (t) => set({ missionTimeLeft: t }),
   addMissionKill: () => set(s => ({ missionKills: s.missionKills + 1 })),
   addMissionCollected: () => set(s => ({ missionCollected: s.missionCollected + 1 })),
+  addMissionWaypoint: () => { set(s => ({ missionWaypoint: s.missionWaypoint + 1 })); sfx.pickup(); },
+  clearActBanner: () => set({ actBanner: null }),
   clearMissionResult: () => set({ lastMissionResult: null }),
 
   registerKill: (npcId) => {
@@ -607,6 +649,15 @@ export const useGame = create<GameStore>((set, get) => ({
   },
 }));
 
+/** NPCs que deben estar ocultos según el progreso (el topo tras huir). */
+export function hiddenNpcs(completed: string[], active: string | null): string[] {
+  return completed.includes("m12") || active === "m12" ? ["npc_victor"] : [];
+}
+
+/** Misiones secundarias disponibles ahora mismo. */
+export const availableSideMissions = (s: Pick<GameStore, "completedMissions" | "activeMissionId">) =>
+  SIDE_MISSIONS.filter(m => !s.completedMissions.includes(m.id) && (!m.unlockAfter || s.completedMissions.includes(m.unlockAfter)) && s.activeMissionId !== m.id);
+
 export const isUiBlocking = (s: GameStore) => s.dialog.open || s.showInventory || s.showEmpire || s.showHelp || s.phase !== "playing";
 
 export const formatMoney = (n: number) => {
@@ -626,6 +677,7 @@ export const missionProgressText = (s: GameStore): string | null => {
     case "own_count": return `${Object.keys(s.ownedBusinesses).length}/${m.targetCount}`;
     case "hire": return `${Math.min(m.targetCount ?? 0, s.employees - s.missionHiresAtStart)}/${m.targetCount}`;
     case "kill_boss": return `${(m.targetBosses ?? []).filter(b => s.defeatedBosses.includes(b)).length}/${m.targetBosses?.length ?? 1}`;
+    case "race": case "waypoints": return `${s.missionWaypoint}/${m.waypoints?.length ?? 0}`;
     default: return null;
   }
 };

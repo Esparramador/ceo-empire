@@ -5,11 +5,32 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { VEHICLE_CONFIGS, type VehicleConfig } from "../lib/gameData";
+import { useGLTF } from "@react-three/drei";
+import { VEHICLE_CONFIGS, CHASE_ROUTE, type VehicleConfig } from "../lib/gameData";
 import { useGame } from "../lib/gameStore";
-import { runtime, input, camera as camState, resolveCircle, dist2D } from "../lib/world";
+import { runtime, input, camera as camState, resolveCircle, dist2D, lerpAngle } from "../lib/world";
 import { sfx, engine } from "../lib/audio";
 import { allNpcs, damageNpc } from "./npcLogic";
+import { kitUrl } from "./KitModel";
+
+const KIT_CAR_SCALE = 5;
+const KIT_CAR_YAW = 0; // los coches de KayKit miran hacia +Z
+
+function KitCar({ cfg }: { cfg: VehicleConfig }) {
+  const { scene } = useGLTF(kitUrl(cfg.model!));
+  const obj = useMemo(() => {
+    const c = scene.clone(true);
+    c.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+    return c;
+  }, [scene]);
+  const wheels = useMemo(() => { const w: THREE.Object3D[] = []; obj.traverse(o => { if (/wheel/i.test(o.name)) w.push(o); }); return w; }, [obj]);
+  useFrame(() => {
+    const v = runtime.vehicles[cfg.id];
+    if (!v) return;
+    for (const w of wheels) w.rotation.x = v.wheelSpin;
+  });
+  return <primitive object={obj} scale={KIT_CAR_SCALE} rotation={[0, KIT_CAR_YAW, 0]} />;
+}
 
 function CarMesh({ cfg }: { cfg: VehicleConfig }) {
   const group = useRef<THREE.Group>(null!);
@@ -34,6 +55,23 @@ function CarMesh({ cfg }: { cfg: VehicleConfig }) {
     }
   });
 
+  if (cfg.model) {
+    return (
+      <group ref={group} position={cfg.pos} rotation={[0, cfg.heading, 0]}>
+        <KitCar cfg={cfg} />
+        <mesh position={[0, 0.7, 2.25]}>
+          <boxGeometry args={[1.6, 0.12, 0.05]} />
+          <meshStandardMaterial ref={headMat} color="#fff" emissive="#ffeeaa" emissiveIntensity={0.4} />
+        </mesh>
+        <mesh position={[0, 0.7, -2.25]}>
+          <boxGeometry args={[1.6, 0.1, 0.05]} />
+          <meshStandardMaterial color="#400" emissive="#ff2020" emissiveIntensity={0.9} />
+        </mesh>
+        <spotLight ref={spot} position={[0, 0.8, 2]} angle={0.5} penumbra={0.5} distance={40} color="#fff2cc" target={spotTarget} castShadow={false} visible={false} />
+        <primitive object={spotTarget} position={[0, 0, 20]} />
+      </group>
+    );
+  }
   return (
     <group ref={group} position={cfg.pos} rotation={[0, cfg.heading, 0]}>
       {/* Carrocería */}
@@ -147,6 +185,30 @@ export function VehicleSystem() {
         }
         engine.update(Math.abs(v.speed) / cfg.maxSpeed);
         s.setVehicleSpeed(Math.abs(v.speed) * 3.6);
+      } else if (cfg.ai && runtime.chase.active && runtime.chase.vehicleId === cfg.id) {
+        // IA de huida: sigue la ruta en bucle
+        const route = CHASE_ROUTE;
+        const wp = route[runtime.chase.waypoint % route.length];
+        const dx = wp[0] - v.pos.x, dz = wp[2] - v.pos.z;
+        const d = Math.hypot(dx, dz);
+        if (d < 7) runtime.chase.waypoint = (runtime.chase.waypoint + 1) % route.length;
+        const target = Math.atan2(dx, dz);
+        v.heading = lerpAngle(v.heading, target, Math.min(1, dt * 2.2));
+        const turning = Math.abs(((target - v.heading + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+        const maxS = turning > 0.6 ? 9 : 17;
+        v.speed += (maxS - v.speed) * Math.min(1, dt * 1.5);
+        v.pos.x += Math.sin(v.heading) * v.speed * dt;
+        v.pos.z += Math.cos(v.heading) * v.speed * dt;
+        resolveCircle(v.pos, 1.5);
+        v.wheelSpin += v.speed * dt * 2.8;
+        // ¿Le ha alcanzado el jugador?
+        const dp = dist2D(v.pos, p.pos);
+        if (dp < 6.5) {
+          runtime.chase.contact += dt;
+          const pv = p.inVehicleId ? runtime.vehicles[p.inVehicleId] : null;
+          if (pv && Math.abs(pv.speed) > 8 && dp < 3.6) runtime.chase.contact += 1.5;
+        }
+        if (runtime.chase.contact >= 2.5) { runtime.chase.active = false; runtime.chase.caught = true; v.speed = 0; }
       } else if (v.speed !== 0) {
         v.speed -= v.speed * 3 * dt;
         if (Math.abs(v.speed) < 0.05) v.speed = 0;

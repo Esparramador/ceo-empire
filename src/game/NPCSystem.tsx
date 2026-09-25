@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { NPC_CONFIGS, missionById, type NpcConfig } from "../lib/gameData";
-import { useGame } from "../lib/gameStore";
+import { useGame, availableSideMissions } from "../lib/gameStore";
 import { runtime, resolveCircle, dist2D, lerpAngle, makeNpcRuntime, type NpcRuntime } from "../lib/world";
 import { sfx } from "../lib/audio";
 import { textTexture } from "../lib/textures";
@@ -31,6 +31,7 @@ function NpcView({ cfg, npc, anim }: { cfg: NpcConfig; npc: NpcRuntime; anim: An
     const m = missionById(s.availableMissionId);
     return m && m.giverNpcId === cfg.id && !s.activeMissionId ? m : undefined;
   });
+  const sideGiver = useGame(s => !s.activeMissionId && availableSideMissions(s).some(m => m.giverNpcId === cfg.id));
   const labelTex = useMemo(() => textTexture(hired ? `${cfg.name} · Empleado` : cfg.name, { color: hired ? "#ffd700" : labelColor(cfg.type), size: 44 }), [cfg.name, cfg.type, hired]);
   const isEnemy = cfg.type === "hostile" || cfg.type === "boss" || cfg.type === "police";
   const scale = cfg.scale ?? 1;
@@ -51,7 +52,7 @@ function NpcView({ cfg, npc, anim }: { cfg: NpcConfig; npc: NpcRuntime; anim: An
       bar.current.position.x = -(1 - r) * 1.1;
     }
     if (marker.current) {
-      marker.current.visible = !!giverOf && npc.state !== "dead";
+      marker.current.visible = (!!giverOf || sideGiver) && npc.state !== "dead";
       marker.current.position.y = barY + 1.4 + Math.sin(clock.elapsedTime * 3) * 0.2;
       marker.current.rotation.y = clock.elapsedTime * 2;
     }
@@ -70,15 +71,35 @@ function NpcView({ cfg, npc, anim }: { cfg: NpcConfig; npc: NpcRuntime; anim: An
         <spriteMaterial color={cfg.type === "police" ? "#4d8dff" : "#ff3b3b"} depthWrite={false} />
       </sprite>
       <group ref={marker} visible={false}>
-        <mesh position={[0, 0.55, 0]}>
-          <boxGeometry args={[0.28, 0.9, 0.28]} />
-          <meshStandardMaterial color="#ffd700" emissive="#ffb300" emissiveIntensity={1.2} />
-        </mesh>
-        <mesh position={[0, -0.15, 0]}>
-          <boxGeometry args={[0.3, 0.3, 0.3]} />
-          <meshStandardMaterial color="#ffd700" emissive="#ffb300" emissiveIntensity={1.2} />
-        </mesh>
-        <pointLight intensity={2} distance={7} color="#ffd700" />
+        {giverOf ? (
+          <>
+            <mesh position={[0, 0.55, 0]}>
+              <boxGeometry args={[0.28, 0.9, 0.28]} />
+              <meshStandardMaterial color="#ffd700" emissive="#ffb300" emissiveIntensity={1.2} />
+            </mesh>
+            <mesh position={[0, -0.15, 0]}>
+              <boxGeometry args={[0.3, 0.3, 0.3]} />
+              <meshStandardMaterial color="#ffd700" emissive="#ffb300" emissiveIntensity={1.2} />
+            </mesh>
+            <pointLight intensity={2} distance={7} color="#ffd700" />
+          </>
+        ) : (
+          <>
+            <mesh position={[0, 0.65, 0]}>
+              <torusGeometry args={[0.3, 0.1, 8, 16, Math.PI * 1.5]} />
+              <meshStandardMaterial color="#4da3ff" emissive="#2a7fff" emissiveIntensity={1.2} />
+            </mesh>
+            <mesh position={[0, 0.2, 0]}>
+              <boxGeometry args={[0.2, 0.32, 0.2]} />
+              <meshStandardMaterial color="#4da3ff" emissive="#2a7fff" emissiveIntensity={1.2} />
+            </mesh>
+            <mesh position={[0, -0.2, 0]}>
+              <boxGeometry args={[0.26, 0.26, 0.26]} />
+              <meshStandardMaterial color="#4da3ff" emissive="#2a7fff" emissiveIntensity={1.2} />
+            </mesh>
+            <pointLight intensity={2} distance={7} color="#4da3ff" />
+          </>
+        )}
       </group>
     </group>
   );
@@ -141,6 +162,7 @@ export function NPCSystem() {
     const update = (cfg: Omit<NpcConfig, "id" | "pos">, n: NpcRuntime, anim: AnimState) => {
       n.hitFlash = Math.max(0, n.hitFlash - dt * 3);
       anim.hitFlash = n.hitFlash;
+      anim.dance = n.state !== "dead" && (cfg.variant === "dancer" || cfg.name === "DJ Neón");
       n.attackAnim = Math.max(0, n.attackAnim - dt * 2.5);
       anim.attack = n.attackAnim;
       n.attackCd = Math.max(0, n.attackCd - dt);

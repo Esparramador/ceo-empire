@@ -1,5 +1,5 @@
 import { useGame, formatMoney } from "../lib/gameStore";
-import { MISSIONS, missionById } from "../lib/gameData";
+import { MAIN_MISSIONS, SIDE_MISSIONS, STORY, missionById } from "../lib/gameData";
 import { sfx } from "../lib/audio";
 
 export function HelpPanel() {
@@ -100,7 +100,8 @@ export function VictoryScreen() {
       <div className="confetti" />
       <div style={{ fontSize: 72 }}>👑</div>
       <h1 className="game-title">CEO DEL AÑO</h1>
-      <p>Has completado las {MISSIONS.length} misiones y cerrado el trato del siglo. La ciudad es tuya.</p>
+      <p>{STORY.epilogue}</p>
+      <p className="dim">Historia completada: {MAIN_MISSIONS.length} misiones principales · {SIDE_MISSIONS.length} secundarias disponibles en modo libre.</p>
       <div className="stats-grid big">
         <div><b>{formatMoney(money)}</b><span>fortuna</span></div>
         <div><b>{owned}/8</b><span>negocios</span></div>

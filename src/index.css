@@ -148,3 +148,20 @@ kbd { background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.2
 .victory-screen p { color: rgba(255,255,255,0.75); font-size: 15px; max-width: 520px; }
 .confetti { position: absolute; inset: 0; pointer-events: none; background-image: radial-gradient(circle, #ffd700 2px, transparent 3px), radial-gradient(circle, #ff9500 2px, transparent 3px), radial-gradient(circle, #2dd49f 2px, transparent 3px); background-size: 90px 90px, 130px 130px, 170px 170px; opacity: 0.35; animation: fall 6s linear infinite; }
 @keyframes fall { from { background-position: 0 0, 0 0, 0 0; } to { background-position: 0 900px, 0 1300px, 0 1700px; } }
+
+/* ── Historia ───────────────────────────────────────────────────────────── */
+.story-screen { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at 50% 40%, rgba(20,30,60,0.92) 0%, rgba(0,0,0,0.96) 70%); backdrop-filter: blur(6px); overflow: auto; padding: 20px; }
+.story-box { max-width: 720px; width: 100%; text-align: center; display: flex; flex-direction: column; align-items: center; }
+.story-sub { font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-bottom: 22px; }
+.story-text { text-align: left; font-size: 15px; line-height: 1.7; color: rgba(255,255,255,0.85); margin-bottom: 18px; min-height: 180px; }
+.story-text p { opacity: 0; transform: translateY(8px); transition: all 0.7s ease; margin-bottom: 12px; }
+.story-text p.in { opacity: 1; transform: none; }
+.story-acts { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 22px; }
+.story-acts span { font-size: 11px; color: #ffd700; border: 1px solid rgba(255,215,0,0.35); border-radius: 20px; padding: 3px 10px; }
+.act-banner { position: fixed; top: 30%; left: 0; right: 0; z-index: 26; display: flex; align-items: center; justify-content: center; gap: 16px; pointer-events: none; animation: actIn 0.8s ease; }
+.act-line { height: 2px; width: min(180px, 20vw); background: linear-gradient(90deg, transparent, #ffd700); }
+.act-line:last-child { background: linear-gradient(90deg, #ffd700, transparent); }
+.act-title { font-size: clamp(22px, 3.4vw, 38px); font-weight: 900; letter-spacing: 3px; color: #ffd700; text-shadow: 0 2px 20px rgba(0,0,0,0.9); text-transform: uppercase; white-space: nowrap; }
+@keyframes actIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
+.mission-cat { font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-left: 8px; border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; padding: 1px 6px; }
+.act-label { font-size: 10px; color: rgba(255,215,0,0.7); letter-spacing: 1px; text-transform: uppercase; margin: 8px 0 4px; }

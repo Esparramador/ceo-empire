@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useGame, formatMoney, missionProgressText, isUiBlocking } from "../lib/gameStore";
+import { useGame, formatMoney, missionProgressText, isUiBlocking, availableSideMissions } from "../lib/gameStore";
 import { WEAPONS, missionById, MAX_BUSINESS_LEVEL, upgradeCost, BUSINESSES } from "../lib/gameData";
 import { runtime, input } from "../lib/world";
 
@@ -80,6 +80,7 @@ export function HUD() {
   const nearby = useGame(s => s.nearby);
   const activeMission = useGame(s => missionById(s.activeMissionId));
   const availableMission = useGame(s => missionById(s.availableMissionId));
+  const sideCount = useGame(s => availableSideMissions(s).length);
   const progress = useGame(s => missionProgressText(s));
   const timeLeft = useGame(s => s.missionTimeLeft);
   const notifications = useGame(s => s.notifications);
@@ -135,7 +136,7 @@ export function HUD() {
       <div className="hud-mission">
         {activeMission ? (
           <>
-            <div className="mission-title" style={{ color: activeMission.color }}>🎯 {activeMission.title}{progress ? ` · ${progress}` : ""}</div>
+            <div className="mission-title" style={{ color: activeMission.color }}>{activeMission.category === "main" ? "🎯" : "📋"} {activeMission.title}{progress ? ` · ${progress}` : ""}<span className="mission-cat">{activeMission.category === "main" ? "principal" : "secundaria"}</span></div>
             <div className="mission-obj">{activeMission.objective}</div>
             {timeLeft !== null && <div className={`mission-timer ${timeLeft < 15 ? "urgent" : ""}`}>⏱ {Math.ceil(timeLeft)} s</div>}
           </>
@@ -143,6 +144,11 @@ export function HUD() {
           <>
             <div className="mission-title dim">📋 Misión disponible: {availableMission.title}</div>
             <div className="mission-obj">Busca el marcador «!» amarillo y pulsa F para hablar.</div>
+          </>
+        ) : sideCount > 0 ? (
+          <>
+            <div className="mission-title dim">📋 {sideCount} misión{sideCount > 1 ? "es" : ""} secundaria{sideCount > 1 ? "s" : ""} disponible{sideCount > 1 ? "s" : ""}</div>
+            <div className="mission-obj">Busca los marcadores «?» azules. Tab para ver la lista.</div>
           </>
         ) : (
           <div className="mission-title dim">👑 Modo libre: sigue ampliando tu imperio</div>

@@ -7,6 +7,7 @@ import { DialogBox } from "./ui/DialogBox";
 import { Inventory } from "./ui/Inventory";
 import { EmpirePanel } from "./ui/EmpirePanel";
 import { HelpPanel, PauseMenu, DeadScreen, VictoryScreen } from "./ui/Overlays";
+import { StoryIntro, ActBanner } from "./ui/StoryIntro";
 import { Game } from "./game/Game";
 
 class GameErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -52,6 +53,7 @@ export default function App() {
             <Game />
           </Suspense>
           <HUD />
+          <ActBanner />
           <MiniMap />
           <DialogBox />
           <Inventory />
@@ -60,6 +62,7 @@ export default function App() {
           <PauseMenu />
           <DeadScreen />
           <VictoryScreen />
+          <StoryIntro />
         </GameErrorBoundary>
       )}
     </>

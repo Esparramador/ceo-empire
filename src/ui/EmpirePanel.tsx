@@ -1,5 +1,7 @@
+import { useShallow } from "zustand/react/shallow";
 import { useGame, formatMoney } from "../lib/gameStore";
-import { BUSINESSES, MISSIONS, MAX_BUSINESS_LEVEL, MAX_EMPLOYEES, businessIncome, upgradeCost } from "../lib/gameData";
+import { BUSINESSES, MAIN_MISSIONS, SIDE_MISSIONS, STORY, SIDE_BOSS_IDS, NPC_CONFIGS, MAX_BUSINESS_LEVEL, MAX_EMPLOYEES, businessIncome, upgradeCost } from "../lib/gameData";
+import { availableSideMissions } from "../lib/gameStore";
 import { runtime } from "../lib/world";
 
 function fmtTime(sec: number) {
@@ -25,7 +27,9 @@ export function EmpirePanel() {
   const karma = useGame(s => s.karma);
   const upgrade = useGame(s => s.upgradeBusiness);
   const businessPrice = useGame(s => s.businessPrice);
+  const sideAvailable = useGame(useShallow(s => availableSideMissions(s).map(m => m.id)));
   if (!show) return null;
+  const giverName = (id: string) => NPC_CONFIGS.find(n => n.id === id)?.name ?? "";
 
   const p = runtime.player.pos;
   const ownedCount = Object.keys(owned).length;
@@ -69,19 +73,43 @@ export function EmpirePanel() {
           </div>
         </div>
         <div>
-          <div className="section-title">Misiones ({completed.length}/{MISSIONS.length})</div>
+          <div className="section-title">Historia principal ({completed.filter(id => MAIN_MISSIONS.some(m => m.id === id)).length}/{MAIN_MISSIONS.length})</div>
           <div className="list compact">
-            {MISSIONS.map((m, i) => {
+            {STORY.acts.map(act => (
+              <div key={act.id}>
+                <div className="act-label">{act.title}</div>
+                {act.missions.map(id => {
+                  const m = MAIN_MISSIONS.find(x => x.id === id)!;
+                  const done = completed.includes(m.id);
+                  const active = activeId === m.id;
+                  const avail = availableId === m.id;
+                  const locked = !done && !active && !avail;
+                  return (
+                    <div key={m.id} className={`item ${active ? "active" : ""} ${locked ? "locked" : ""}`}>
+                      <span className="item-icon">{done ? "✅" : active ? "🎯" : avail ? "❗" : "🔒"}</span>
+                      <div className="item-body">
+                        <div className="item-name">{locked ? "???" : m.title}</div>
+                        <div className="item-desc">{locked ? "Completa la misión anterior" : active ? m.objective : done ? `Completada · ${formatMoney(m.rewardMoney)}` : `Disponible: habla con ${giverName(m.giverNpcId)}`}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+          <div className="section-title">Misiones secundarias ({completed.filter(id => SIDE_MISSIONS.some(m => m.id === id)).length}/{SIDE_MISSIONS.length})</div>
+          <div className="list compact">
+            {SIDE_MISSIONS.map(m => {
               const done = completed.includes(m.id);
               const active = activeId === m.id;
-              const avail = availableId === m.id;
+              const avail = sideAvailable.includes(m.id);
               const locked = !done && !active && !avail;
               return (
                 <div key={m.id} className={`item ${active ? "active" : ""} ${locked ? "locked" : ""}`}>
-                  <span className="item-icon">{done ? "✅" : active ? "🎯" : avail ? "📋" : "🔒"}</span>
+                  <span className="item-icon">{done ? "✅" : active ? "📋" : avail ? "❔" : "🔒"}</span>
                   <div className="item-body">
-                    <div className="item-name">{i + 1}. {locked ? "???" : m.title}</div>
-                    <div className="item-desc">{locked ? "Completa la misión anterior" : active ? m.objective : done ? `Recompensa ${formatMoney(m.rewardMoney)}` : "Disponible: habla con quien la encarga"}</div>
+                    <div className="item-name">{locked ? "???" : m.title}</div>
+                    <div className="item-desc">{locked ? "Se desbloquea avanzando en la historia" : active ? m.objective : done ? `Completada · ${formatMoney(m.rewardMoney)}` : `Habla con ${giverName(m.giverNpcId)} · ${formatMoney(m.rewardMoney)}`}</div>
                   </div>
                 </div>
               );
@@ -92,7 +120,7 @@ export function EmpirePanel() {
             <div><b>{fmtTime(playTime)}</b><span>jugado</span></div>
             <div><b>{formatMoney(totalEarned)}</b><span>ganado</span></div>
             <div><b>{killCount}</b><span>bajas</span></div>
-            <div><b>{defeatedBosses.length}/4</b><span>jefes</span></div>
+            <div><b>{defeatedBosses.filter(b => !SIDE_BOSS_IDS.includes(b)).length}/4</b><span>jefes</span></div>
             <div><b>{deaths}</b><span>muertes</span></div>
             <div><b>{karma > 0 ? "+" : ""}{karma}</b><span>karma</span></div>
           </div>

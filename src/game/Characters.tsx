@@ -18,6 +18,8 @@ export interface AnimState {
   attack: number;      // 1 → 0 progreso del golpe
   dead: number;        // 0..1
   hitFlash: number;    // 0..1
+  dance?: boolean;     // baila (Club Diamante)
+  sit?: boolean;       // sentado
 }
 
 export const makeAnim = (): AnimState => ({ moving: 0, speedMul: 1, attack: 0, dead: 0, hitFlash: 0 });
@@ -61,6 +63,15 @@ export function lookFor(variant: CharacterVariant, seed = ""): Look {
     case "majin":        return { skin: "#f28cc0", jacket: "#2a2a2a", shirt: "#f28cc0", pants: "#f5f0d0", shoes: "#f5c400", hair: "#000", hairStyle: "bald", hat: "none", antenna: true, belly: true, eyes: "#111", vest: true, belt: "#2a2a2a" };
     case "illidan":      return { skin: "#7a4fb0", jacket: "#7a4fb0", shirt: "#7a4fb0", pants: "#221c2c", shoes: "#151020", hair: "#111", hairStyle: "long", hat: "none", horns: true, wings: true, eyes: "#3cff8a", tattoos: true, blindfold: true };
     case "arthas":       return { skin: "#cfd6e6", jacket: "#5e6b85", shirt: "#3a4560", pants: "#2c3448", shoes: "#3a4560", hair: "#e8e8f0", hairStyle: "white_long", hat: "helmet", cape: "#2a1a3a", sword: true, metal: true, eyes: "#5ac8ff", belt: "#4a5670" };
+    case "dancer":       return { skin: hashPick(seed + "s", SKINS), jacket: hashPick(seed + "d", ["#ff2d95", "#c0392b", "#8e44ad", "#f1c40f"]), shirt: hashPick(seed + "d", ["#ff2d95", "#c0392b", "#8e44ad", "#f1c40f"]), pants: hashPick(seed + "d", ["#ff2d95", "#c0392b", "#8e44ad", "#f1c40f"]), shoes: "#111", hair: hashPick(seed + "h", ["#2a1a10", "#f5d76e", "#8b0000", "#111"]), hairStyle: hashPick(seed + "hs", ["long", "ponytail"]), hat: "none", skirt: true, lipstick: true, heels: true, earrings: true };
+    case "bouncer":      return { skin: "#6b3e26", jacket: "#111", shirt: "#f0f0f0", pants: "#111", shoes: "#111", hair: "#000", hairStyle: "bald", hat: "none", glasses: true, tie: "#111", belt: "#333", scale: 1.15 };
+    case "madame":       return { skin: "#f3cdb0", jacket: "#b00020", shirt: "#b00020", pants: "#b00020", shoes: "#111", hair: "#f5d76e", hairStyle: "long", hat: "none", skirt: true, lipstick: true, heels: true, earrings: true };
+    case "racer":        return { skin: "#d9a57c", jacket: "#ff5500", shirt: "#fff", pants: "#222", shoes: "#fff", hair: "#111", hairStyle: "short", hat: "cap", glasses: true };
+    case "intern":       return { skin: hashPick(seed + "s", SKINS), jacket: "#3d8bff", shirt: "#fff", pants: "#2d3a55", shoes: "#333", hair: "#2a1a10", hairStyle: hashPick(seed + "hs", ["spiky", "ponytail"]), hat: "none", tie: "#3d8bff" };
+    case "crafter":      return { skin: "#c68642", jacket: "#2d8a6b", shirt: "#fff5e0", pants: "#5a4632", shoes: "#3a2a1a", hair: "#2a1a10", hairStyle: "ponytail", hat: "none", apron: true, earrings: true };
+    case "detective":    return { skin: "#e8b48a", jacket: "#5b4a3a", shirt: "#e8e0d0", pants: "#3a2f26", shoes: "#2a1a10", hair: "#4a3a2a", hairStyle: "short", hat: "cap", tie: "#7a1a1a", lapels: true, beard: true };
+    case "promoter":     return { skin: "#a86f3d", jacket: "#f5f5f5", shirt: "#111", pants: "#f5f5f5", shoes: "#111", hair: "#111", hairStyle: "slick", hat: "none", tie: "#ffd700", lapels: true, glasses: true, belt: "#ffd700" };
+    case "mole":         return { skin: "#f1c9a5", jacket: "#2b2b3a", shirt: "#dfe6f5", pants: "#1f1f2a", shoes: "#111", hair: "#5a5a5a", hairStyle: "slick", hat: "none", tie: "#556", lapels: true, glasses: true };
   }
 }
 
@@ -119,20 +130,34 @@ export function ProceduralCharacter({ variant, seed = "", anim, scale = 1 }: { v
 
   useFrame((_, dt) => {
     const a = anim;
+    if (a.dance) {
+      // Baile: cadera, brazos arriba y balanceo
+      t.current += dt * 6;
+      const b = Math.sin(t.current), b2 = Math.sin(t.current * 0.5);
+      if (legL.current) legL.current.rotation.x = b * 0.25;
+      if (legR.current) legR.current.rotation.x = -b * 0.25;
+      if (armL.current) { armL.current.rotation.x = -2.6 + b2 * 0.4; armL.current.rotation.z = 0.5 + b * 0.35; }
+      if (armR.current) { armR.current.rotation.x = -2.6 - b2 * 0.4; armR.current.rotation.z = -0.5 - b * 0.35; }
+      if (torso.current) { torso.current.rotation.z = b * 0.14; torso.current.rotation.y = b2 * 0.5; torso.current.rotation.x = 0; }
+      if (head.current) head.current.rotation.z = -b * 0.12;
+      if (body.current) body.current.position.y = Math.abs(b) * 0.12;
+      if (root.current) { root.current.rotation.x = 0; root.current.position.y = 0; }
+      return;
+    }
     t.current += dt * (a.moving > 0.05 ? 8 * a.speedMul : 1.6);
     const swing = Math.sin(t.current) * 0.8 * a.moving;
     const idle = Math.sin(t.current) * 0.04 * (1 - a.moving);
-    if (legL.current) legL.current.rotation.x = swing;
-    if (legR.current) legR.current.rotation.x = -swing;
-    if (armL.current) armL.current.rotation.x = -swing * 0.85 + idle;
+    if (legL.current) legL.current.rotation.x = a.sit ? -1.5 : swing;
+    if (legR.current) legR.current.rotation.x = a.sit ? -1.5 : -swing;
+    if (armL.current) { armL.current.rotation.x = -swing * 0.85 + idle; armL.current.rotation.z = 0.06; }
     if (armR.current) {
       const punch = a.attack > 0 ? -Math.sin(a.attack * Math.PI) * 1.9 : 0;
       armR.current.rotation.x = swing * 0.85 - idle + punch;
       armR.current.rotation.z = a.attack > 0 ? -Math.sin(a.attack * Math.PI) * 0.45 : -0.06;
     }
-    if (torso.current) torso.current.rotation.x = a.moving * 0.08 + (a.attack > 0 ? Math.sin(a.attack * Math.PI) * 0.25 : 0);
+    if (torso.current) { torso.current.rotation.x = a.moving * 0.08 + (a.attack > 0 ? Math.sin(a.attack * Math.PI) * 0.25 : 0); torso.current.rotation.z = 0; torso.current.rotation.y = 0; }
     if (head.current) head.current.rotation.z = Math.sin(t.current * 0.5) * 0.03;
-    if (body.current) body.current.position.y = Math.abs(Math.sin(t.current)) * 0.07 * a.moving + Math.sin(t.current * 0.5) * 0.012 * (1 - a.moving);
+    if (body.current) body.current.position.y = (a.sit ? -0.45 : 0) + Math.abs(Math.sin(t.current)) * 0.07 * a.moving + Math.sin(t.current * 0.5) * 0.012 * (1 - a.moving);
     if (wingL.current && wingR.current) {
       const flap = Math.sin(t.current * 0.7) * 0.25;
       wingL.current.rotation.y = 0.5 + flap; wingR.current.rotation.y = -0.5 - flap;
@@ -426,6 +451,8 @@ interface ModelConfig {
   clipBottom?: number;
   /** escala de las piernas procedurales (modo bust) */
   legScale?: number;
+  /** clip de ataque preferido (modelos animados) */
+  attackClip?: string;
 }
 
 const TRIPO_YAW = -Math.PI / 2;
@@ -436,7 +463,23 @@ export const MODEL_CONFIG: Record<string, ModelConfig> = {
   lord_tuetano:     { mode: "creature", height: 2.6, yaw: TRIPO_YAW, maxWidth: 4.6, hover: 0.9 },
   mini_dragon_blue: { mode: "full", height: 3.6, yaw: TRIPO_YAW, clipBottom: 0.11 },
 };
+const KAYKIT = { mode: "full" as const, yaw: 0 };
+Object.assign(MODEL_CONFIG, {
+  "kit/ks_Skeleton_Minion":  { ...KAYKIT, height: 1.85, attackClip: "Unarmed_Melee_Attack_Punch_A" },
+  "kit/ks_Skeleton_Rogue":   { ...KAYKIT, height: 1.9,  attackClip: "1H_Melee_Attack_Chop" },
+  "kit/ks_Skeleton_Warrior": { ...KAYKIT, height: 2.0,  attackClip: "1H_Melee_Attack_Chop" },
+  "kit/ks_Skeleton_Mage":    { ...KAYKIT, height: 1.9,  attackClip: "Spellcast_Shoot" },
+  "kit/ka_Knight":           { ...KAYKIT, height: 2.0,  attackClip: "1H_Melee_Attack_Chop" },
+  "kit/ka_Barbarian":        { ...KAYKIT, height: 2.1,  attackClip: "2H_Melee_Attack_Chop" },
+  "kit/ka_Mage":             { ...KAYKIT, height: 1.95, attackClip: "Spellcast_Shoot" },
+  "kit/ka_Rogue":            { ...KAYKIT, height: 1.9,  attackClip: "1H_Melee_Attack_Chop" },
+} satisfies Record<string, ModelConfig>);
 const DEFAULT_CONFIG: ModelConfig = { mode: "full", height: 1.8, yaw: 0 };
+
+/** URL del modelo: "kit/nombre" → public/assets/kit, si no → public/assets/models */
+export function modelUrlBase(glb: string) {
+  return glb.startsWith("kit/") ? `${import.meta.env.BASE_URL}assets/kit/${glb.slice(4)}` : `${import.meta.env.BASE_URL}assets/models/${glb}`;
+}
 
 const availability = new Map<string, Promise<boolean>>();
 
@@ -542,15 +585,27 @@ function GlbModel({ url, name, anim, scale, look }: { url: string; name: string;
     t.current += dt * (a.moving > 0.05 ? 8 * a.speedMul : 1.5);
     if (names.length) {
       const find = (k: string[]) => names.find(n => k.some(x => n.toLowerCase().includes(x)));
-      const want = a.dead > 0 ? (find(["death", "die"]) ?? null)
-        : a.attack > 0.5 ? (find(["attack", "punch", "hit"]) ?? null)
-        : a.moving > 0.2 ? (find(["run", "walk"]) ?? names[0])
-        : (find(["idle", "stand"]) ?? names[0]);
+      const deathClip = find(["death", "die"]);
+      const want = a.dead > 0 ? (deathClip ?? null)
+        : a.dance ? (find(["cheer", "dance"]) ?? names[0])
+        : a.sit ? (find(["sit_chair_idle", "sit"]) ?? names[0])
+        : a.attack > 0.55 ? ((cfg.attackClip && names.includes(cfg.attackClip) ? cfg.attackClip : find(["attack", "punch"])) ?? null)
+        : a.moving > 0.2 ? ((a.speedMul > 1.4 ? find(["running_a", "run"]) : find(["walking_a", "walk"])) ?? find(["run", "walk"]) ?? names[0])
+        : (find(["idle"]) ?? names[0]);
       if (want && want !== current.current) {
-        if (current.current) actions[current.current]?.fadeOut(0.2);
-        actions[want]?.reset().fadeIn(0.2).play();
+        if (current.current) actions[current.current]?.fadeOut(0.15);
+        const act = actions[want];
+        if (act) {
+          act.reset().fadeIn(0.15);
+          const once = want === deathClip || want === cfg.attackClip || /attack|punch|spellcast/i.test(want);
+          act.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
+          act.clampWhenFinished = once;
+          act.timeScale = /attack|punch/i.test(want) ? 1.4 : 1;
+          act.play();
+        }
         current.current = want;
       }
+      if (deathClip && root.current) { root.current.rotation.x = 0; root.current.position.y = 0; }
     } else if (bodyRef.current) {
       // Animación procedural para mallas estáticas
       const lunge = a.attack > 0 ? Math.sin(a.attack * Math.PI) : 0;
@@ -571,8 +626,7 @@ function GlbModel({ url, name, anim, scale, look }: { url: string; name: string;
       }
     }
     if (root.current) {
-      root.current.rotation.x = -Math.PI / 2 * a.dead;
-      root.current.position.y = -0.3 * a.dead;
+      if (!names.length) { root.current.rotation.x = -Math.PI / 2 * a.dead; root.current.position.y = -0.3 * a.dead; }
       if (cfg.clipBottom) {
         root.current.getWorldPosition(worldPos);
         clipPlane.constant = a.dead > 0 ? 1e6 : -(worldPos.y + cfg.clipBottom * fit.height * scale);
@@ -627,7 +681,7 @@ function StlModel({ url, name, anim, scale, color }: { url: string; name: string
 
 /** Usa el modelo GLB/STL si existe en public/assets/models; si no, el personaje procedural. */
 export function Character({ variant, glb, seed, anim, scale = 1 }: { variant: CharacterVariant; glb?: string; seed?: string; anim: AnimState; scale?: number }) {
-  const base = glb ? `${import.meta.env.BASE_URL}assets/models/${glb}` : null;
+  const base = glb ? modelUrlBase(glb) : null;
   const [model, setModel] = useState<{ url: string; kind: "glb" | "stl" } | null>(null);
   useEffect(() => {
     let alive = true;
@@ -654,6 +708,6 @@ export function Character({ variant, glb, seed, anim, scale = 1 }: { variant: Ch
 
 // Precarga de los modelos incluidos
 for (const name of Object.keys(MODEL_CONFIG)) {
-  const url = `${import.meta.env.BASE_URL}assets/models/${name}.glb`;
+  const url = `${modelUrlBase(name)}.glb`;
   void checkAsset(url).then(ok => { if (ok) useGLTF.preload(url); });
 }

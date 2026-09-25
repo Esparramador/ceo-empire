@@ -218,7 +218,8 @@ export function Player() {
       // Ataque
       const weapon = WEAPONS[s.activeWeapon] ?? WEAPONS.fists;
       const wantsAttack = playing && (input.attackPressed || (input.attackHeld && !weapon.ranged));
-      input.attackPressed = false;
+      // La pulsación se conserva mientras dure el cooldown (buffer de entrada)
+      if (!playing || p.attackCd <= 0) input.attackPressed = false;
       if (wantsAttack && p.attackCd <= 0) {
         p.attackCd = weapon.cooldown;
         anim.attack = 1;
