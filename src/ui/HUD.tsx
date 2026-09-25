@@ -1,150 +1,186 @@
 import { useEffect, useRef } from "react";
-import { useGame } from "../lib/gameStore";
+import { useGame, formatMoney, missionProgressText, isUiBlocking } from "../lib/gameStore";
+import { WEAPONS, missionById, MAX_BUSINESS_LEVEL, upgradeCost, BUSINESSES } from "../lib/gameData";
+import { runtime, input } from "../lib/world";
 
-function HealthBar({ value, max = 100 }: { value: number; max?: number }) {
+function Bar({ value, max, color, height = 8 }: { value: number; max: number; color: string; height?: number }) {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
-  const color = pct > 60 ? "#2dd49f" : pct > 30 ? "#fbbf24" : "#ef4444";
   return (
-    <div style={{ marginBottom: 4 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "rgba(255,255,255,0.5)", marginBottom: 2 }}>
-        <span>❤️ SALUD</span><span>{Math.round(value)}</span>
-      </div>
-      <div style={{ height: 7, borderRadius: 4, background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)", overflow: "hidden" }}>
-        <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 4, transition: "width 0.3s, background 0.3s" }} />
-      </div>
+    <div className="bar" style={{ height }}>
+      <div className="bar-fill" style={{ width: `${pct}%`, background: color }} />
     </div>
   );
 }
 
-function KarmaBar({ value }: { value: number }) {
-  const pct = ((value + 100) / 200) * 100;
-  const color = value > 30 ? "#2dd49f" : value > -30 ? "#fbbf24" : "#ef4444";
-  const label = value > 50 ? "CEO Ejemplar" : value > 0 ? "Ambicioso" : value > -50 ? "Polémico" : "Villano";
-  return (
-    <div style={{ marginBottom: 4 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "rgba(255,255,255,0.5)", marginBottom: 2 }}>
-        <span>⚖️ KARMA</span><span style={{ color }}>{label} ({value > 0 ? "+" : ""}{value})</span>
-      </div>
-      <div style={{ height: 5, borderRadius: 4, background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)", overflow: "hidden" }}>
-        <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 4, transition: "width 0.3s" }} />
-      </div>
-    </div>
-  );
+function Clock() {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const id = setInterval(() => {
+      const h = runtime.hour;
+      const hh = Math.floor(h), mm = Math.floor((h % 1) * 60);
+      const icon = h >= 6 && h < 20 ? (h >= 18 ? "🌇" : "☀️") : "🌙";
+      if (ref.current) ref.current.textContent = `${icon} ${hh.toString().padStart(2, "0")}:${mm.toString().padStart(2, "0")}`;
+    }, 500);
+    return () => clearInterval(id);
+  }, []);
+  return <span ref={ref} className="clock" />;
 }
 
-function WantedStars({ level }: { level: number }) {
-  return (
-    <div style={{ display: "flex", gap: 3, justifyContent: "flex-end" }}>
-      {[1,2,3,4,5].map(i => (
-        <span key={i} style={{ fontSize: 16, opacity: i <= level ? 1 : 0.2, filter: i <= level ? "drop-shadow(0 0 4px #ffd700)" : "none", transition: "all 0.3s" }}>⭐</span>
-      ))}
-    </div>
-  );
+function DamageVignette() {
+  const ref = useRef<HTMLDivElement>(null);
+  const health = useGame(s => s.health);
+  const maxHealth = useGame(s => s.maxHealth);
+  useEffect(() => {
+    let raf = 0;
+    const loop = () => {
+      const low = health / maxHealth < 0.3 ? (0.35 + Math.sin(performance.now() / 250) * 0.15) : 0;
+      const a = Math.max(runtime.player.hitFlash * 0.6, low);
+      if (ref.current) ref.current.style.opacity = a.toFixed(3);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [health, maxHealth]);
+  return <div ref={ref} className="vignette" />;
 }
 
-function DayNightClock({ dayTime }: { dayTime: number }) {
-  const h = Math.floor(dayTime);
-  const m = Math.floor((dayTime % 1) * 60);
-  const ampm = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 || 12;
-  const icon = h >= 6 && h < 20 ? "☀️" : "🌙";
+function PointerLockHint() {
+  const blocking = useGame(s => isUiBlocking(s));
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const id = setInterval(() => { if (ref.current) ref.current.style.display = !input.pointerLocked && !blocking ? "flex" : "none"; }, 200);
+    return () => clearInterval(id);
+  }, [blocking]);
   return (
-    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", textAlign: "right" }}>
-      {icon} {h12}:{m.toString().padStart(2,"0")} {ampm}
+    <div ref={ref} className="lock-hint" style={{ display: "none" }}>
+      <div className="lock-box">
+        <div style={{ fontSize: 28 }}>🖱️</div>
+        <div style={{ fontWeight: 700, marginTop: 6 }}>Haz clic en el juego para capturar el ratón</div>
+        <div style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>Esc para pausar · H para ver los controles</div>
+      </div>
     </div>
   );
 }
 
 export function HUD() {
-  const {
-    health, money, karma, wantedLevel, dayTime, phase,
-    currentObjective, inVehicle, nearbyNpcId, nearbyVehicleId,
-    nearbyBusinessId, nearbyMissionId, activeWeapon, killCount,
-    ownedBusinesses, passiveIncomePerSec, tickPassiveIncome,
-  } = useGame();
+  const health = useGame(s => s.health);
+  const maxHealth = useGame(s => s.maxHealth);
+  const armor = useGame(s => s.armor);
+  const money = useGame(s => s.money);
+  const karma = useGame(s => s.karma);
+  const wanted = useGame(s => s.wantedLevel);
+  const activeWeapon = useGame(s => s.activeWeapon);
+  const ammo = useGame(s => s.ammo);
+  const employees = useGame(s => s.employees);
+  const owned = useGame(s => Object.keys(s.ownedBusinesses).length);
+  const inVehicle = useGame(s => s.inVehicle);
+  const vehicleName = useGame(s => s.vehicleName);
+  const vehicleSpeed = useGame(s => s.vehicleSpeed);
+  const income = useGame(s => s.incomePerSec());
+  const nearby = useGame(s => s.nearby);
+  const activeMission = useGame(s => missionById(s.activeMissionId));
+  const availableMission = useGame(s => missionById(s.availableMissionId));
+  const progress = useGame(s => missionProgressText(s));
+  const timeLeft = useGame(s => s.missionTimeLeft);
+  const notifications = useGame(s => s.notifications);
+  const bossFight = useGame(s => s.bossFight);
+  const result = useGame(s => s.lastMissionResult);
+  const clearResult = useGame(s => s.clearMissionResult);
+  const ownedLevel = useGame(s => nearby.businessId ? s.ownedBusinesses[nearby.businessId] ?? 0 : 0);
+  const price = useGame(s => nearby.businessId ? s.businessPrice(nearby.businessId) : 0);
+  const phase = useGame(s => s.phase);
 
-  const tickRef = useRef<ReturnType<typeof setInterval>>();
   useEffect(() => {
-    tickRef.current = setInterval(() => tickPassiveIncome(), 1000);
-    return () => clearInterval(tickRef.current);
-  }, [tickPassiveIncome]);
+    if (!result) return;
+    const id = setTimeout(clearResult, 4500);
+    return () => clearTimeout(id);
+  }, [result, clearResult]);
 
-  if (phase !== "playing") return null;
+  if (phase !== "playing" && phase !== "paused") return null;
 
-  const formatMoney = (n: number) => {
-    if (n >= 1_000_000) return `$${(n/1_000_000).toFixed(1)}M`;
-    if (n >= 1_000) return `$${(n/1_000).toFixed(1)}K`;
-    return `$${n}`;
-  };
+  const weapon = WEAPONS[activeWeapon] ?? WEAPONS.fists;
+  const karmaLabel = karma > 50 ? "CEO ejemplar" : karma > 10 ? "Ambicioso" : karma > -30 ? "Polémico" : "Villano";
+  const karmaColor = karma > 10 ? "#2dd49f" : karma > -30 ? "#fbbf24" : "#ef4444";
+  const nearBiz = nearby.businessId ? BUSINESSES.find(b => b.id === nearby.businessId) : null;
 
   return (
     <>
-      {/* TOP LEFT: Stats */}
-      <div style={{
-        position: "fixed", top: 16, left: 16, width: 200,
-        background: "rgba(0,0,0,0.55)", border: "1px solid rgba(255,255,255,0.1)",
-        borderRadius: 10, padding: "10px 12px", zIndex: 10,
-        backdropFilter: "blur(6px)",
-      }}>
-        <HealthBar value={health} />
-        <KarmaBar value={karma} />
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-          <div style={{ fontSize: 18, fontWeight: 900, color: "#ffd700", fontVariantNumeric: "tabular-nums" }}>
-            {formatMoney(money)}
-          </div>
-          {ownedBusinesses.length > 0 && (
-            <div style={{ fontSize: 9, color: "#2dd49f" }}>+{formatMoney(passiveIncomePerSec)}/s</div>
-          )}
-        </div>
-        <div style={{ marginTop: 4, fontSize: 9, color: "rgba(255,255,255,0.35)" }}>
-          🏢 {ownedBusinesses.length} negocios &nbsp;|&nbsp; 💀 {killCount} bajas
-        </div>
+      <DamageVignette />
+      <PointerLockHint />
+
+      {/* Arriba izquierda: vitales y dinero */}
+      <div className="hud-panel hud-tl">
+        <div className="hud-row"><span>❤️ Salud{armor ? " 🦺" : ""}</span><span>{Math.round(health)}/{maxHealth}</span></div>
+        <Bar value={health} max={maxHealth} color={health / maxHealth > 0.5 ? "#2dd49f" : health / maxHealth > 0.25 ? "#fbbf24" : "#ef4444"} />
+        <div className="hud-row" style={{ marginTop: 6 }}><span>⚖️ Karma</span><span style={{ color: karmaColor }}>{karmaLabel} ({karma > 0 ? "+" : ""}{karma})</span></div>
+        <Bar value={karma + 100} max={200} color={karmaColor} height={5} />
+        <div className="money">{formatMoney(money)}</div>
+        {income > 0 && <div className="income">+{formatMoney(income)}/s · {owned} negocios · {employees} empleados</div>}
+        {income === 0 && <div className="income dim">Sin ingresos pasivos: compra un negocio</div>}
       </div>
 
-      {/* TOP RIGHT: Wanted + Time */}
-      <div style={{
-        position: "fixed", top: 16, right: 16,
-        background: "rgba(0,0,0,0.55)", border: "1px solid rgba(255,255,255,0.1)",
-        borderRadius: 10, padding: "10px 12px", zIndex: 10,
-        backdropFilter: "blur(6px)", textAlign: "right",
-      }}>
-        <WantedStars level={wantedLevel} />
-        <DayNightClock dayTime={dayTime} />
-        {inVehicle && <div style={{ fontSize: 11, color: "#fbbf24", marginTop: 4 }}>🚗 En vehículo</div>}
-        {activeWeapon !== "fists" && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>🔫 {activeWeapon}</div>}
+      {/* Arriba derecha: búsqueda, hora, arma */}
+      <div className="hud-panel hud-tr">
+        <div className="stars">
+          {[1, 2, 3, 4, 5].map(i => <span key={i} className={i <= wanted ? "star on" : "star"}>★</span>)}
+        </div>
+        <Clock />
+        <div className="weapon">
+          {weapon.icon} {weapon.name}{weapon.ranged ? ` · ${ammo} balas` : ""}
+        </div>
+        {inVehicle && <div className="vehicle">🚗 {vehicleName} · {vehicleSpeed} km/h</div>}
       </div>
 
-      {/* TOP CENTER: Mission objective */}
-      {currentObjective && (
-        <div style={{
-          position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)",
-          background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,215,0,0.3)",
-          borderRadius: 20, padding: "6px 18px", zIndex: 10, maxWidth: "50vw",
-          backdropFilter: "blur(6px)",
-        }}>
-          <div style={{ fontSize: 10, color: "rgba(255,215,0,0.7)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 2 }}>📋 Misión activa</div>
-          <div style={{ fontSize: 12, color: "#fff" }}>{currentObjective}</div>
+      {/* Arriba centro: misión */}
+      <div className="hud-mission">
+        {activeMission ? (
+          <>
+            <div className="mission-title" style={{ color: activeMission.color }}>🎯 {activeMission.title}{progress ? ` · ${progress}` : ""}</div>
+            <div className="mission-obj">{activeMission.objective}</div>
+            {timeLeft !== null && <div className={`mission-timer ${timeLeft < 15 ? "urgent" : ""}`}>⏱ {Math.ceil(timeLeft)} s</div>}
+          </>
+        ) : availableMission ? (
+          <>
+            <div className="mission-title dim">📋 Misión disponible: {availableMission.title}</div>
+            <div className="mission-obj">Busca el marcador «!» amarillo y pulsa F para hablar.</div>
+          </>
+        ) : (
+          <div className="mission-title dim">👑 Modo libre: sigue ampliando tu imperio</div>
+        )}
+      </div>
+
+      {/* Jefe */}
+      {bossFight && (
+        <div className="boss-bar">
+          <div className="boss-name">☠️ {bossFight.name}</div>
+          <Bar value={bossFight.hp} max={bossFight.maxHp} color="#ff3b3b" height={10} />
         </div>
       )}
 
-      {/* BOTTOM: Context hints */}
-      <div style={{ position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", zIndex: 10, display: "flex", gap: 8 }}>
-        {nearbyVehicleId && (
-          <div className="prompt-hint">🚗 <kbd style={{ background: "rgba(255,255,255,0.15)", borderRadius: 4, padding: "1px 5px", fontSize: 10 }}>E</kbd> Entrar vehículo</div>
-        )}
-        {nearbyNpcId && (
-          <div className="prompt-hint">💬 <kbd style={{ background: "rgba(255,255,255,0.15)", borderRadius: 4, padding: "1px 5px", fontSize: 10 }}>F</kbd> Hablar</div>
-        )}
-        {nearbyBusinessId && (
-          <div className="prompt-hint">🏢 <kbd style={{ background: "rgba(255,255,255,0.15)", borderRadius: 4, padding: "1px 5px", fontSize: 10 }}>B</kbd> Comprar negocio</div>
-        )}
-        {nearbyMissionId && (
-          <div className="prompt-hint">🎯 <kbd style={{ background: "rgba(255,255,255,0.15)", borderRadius: 4, padding: "1px 5px", fontSize: 10 }}>E</kbd> Iniciar misión</div>
-        )}
+      {/* Resultado de misión */}
+      {result && (
+        <div className={`mission-result ${result.success ? "ok" : "fail"}`}>
+          <div className="mr-title">{result.success ? "MISIÓN COMPLETADA" : "MISIÓN FALLIDA"}</div>
+          <div className="mr-sub">{result.title}{result.success ? ` · +${formatMoney(result.reward)}` : ""}</div>
+        </div>
+      )}
+
+      {/* Pistas contextuales */}
+      <div className="hints">
+        {inVehicle && <div className="hint"><kbd>E</kbd> Salir del coche · <kbd>Espacio</kbd> Freno de mano</div>}
+        {!inVehicle && nearby.vehicleId && <div className="hint">🚗 <kbd>E</kbd> Entrar en el coche</div>}
+        {!inVehicle && nearby.npcId && <div className="hint">💬 <kbd>F</kbd> Hablar</div>}
+        {!inVehicle && nearBiz && ownedLevel === 0 && <div className="hint">{nearBiz.icon} <kbd>B</kbd> Comprar {nearBiz.name} · {formatMoney(price)}</div>}
+        {!inVehicle && nearBiz && ownedLevel > 0 && ownedLevel < MAX_BUSINESS_LEVEL && <div className="hint">⬆️ <kbd>U</kbd> Mejorar {nearBiz.name} a Nv {ownedLevel + 1} · {formatMoney(upgradeCost(nearBiz, ownedLevel))}</div>}
+        {!inVehicle && nearBiz && ownedLevel >= MAX_BUSINESS_LEVEL && <div className="hint">👑 {nearBiz.name} al nivel máximo</div>}
       </div>
 
-      {/* Crosshair */}
-      <div className="crosshair" />
+      {/* Notificaciones */}
+      <div className="notifications">
+        {notifications.map(n => <div key={n.id} className={`notif ${n.kind}`}>{n.text}</div>)}
+      </div>
+
+      {weapon.ranged && !inVehicle && <div className="crosshair" />}
     </>
   );
 }

@@ -7,23 +7,22 @@ import { Player } from "./Player";
 import { NPCSystem } from "./NPCSystem";
 import { VehicleSystem } from "./VehicleSystem";
 import { MissionSystem } from "./MissionSystem";
+import { Pickups } from "./Pickups";
 
 export function Game() {
   return (
     <div style={{ position: "fixed", inset: 0, width: "100%", height: "100%" }}>
       <Canvas
         shadows
-        gl={{
-          antialias: true,
-          toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 1.1,
-        }}
-        camera={{ fov: 65, near: 0.15, far: 400, position: [0, 5, 40] }}
+        dpr={[1, 1.75]}
+        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05, powerPreference: "high-performance" }}
+        camera={{ fov: 62, near: 0.2, far: 1200, position: [0, 6, 42] }}
         style={{ background: "#000" }}
       >
         <Suspense fallback={null}>
           <DayNightSystem />
           <World />
+          <Pickups />
           <Player />
           <NPCSystem />
           <VehicleSystem />

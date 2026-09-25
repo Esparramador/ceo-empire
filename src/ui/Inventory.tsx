@@ -1,60 +1,68 @@
-import { useGame } from "../lib/gameStore";
+import { useGame, formatMoney } from "../lib/gameStore";
+import { WEAPONS, WEAPON_ORDER } from "../lib/gameData";
 
 export function Inventory() {
-  const { showInventory, inventory, toggleInventory, removeItem, heal } = useGame();
-
-  if (!showInventory) return null;
-
-  const useItem = (id: string, type: string) => {
-    if (type === "health") {
-      heal(50);
-      removeItem(id);
-    }
-  };
+  const show = useGame(s => s.showInventory);
+  const inventory = useGame(s => s.inventory);
+  const weapons = useGame(s => s.weapons);
+  const activeWeapon = useGame(s => s.activeWeapon);
+  const ammo = useGame(s => s.ammo);
+  const money = useGame(s => s.money);
+  const toggle = useGame(s => s.toggleInventory);
+  const useItem = useGame(s => s.useItem);
+  const setActiveWeapon = useGame(s => s.setActiveWeapon);
+  if (!show) return null;
 
   return (
-    <div className="inventory-panel">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+    <div className="panel">
+      <div className="panel-head">
         <div>
-          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", letterSpacing: 1, textTransform: "uppercase" }}>🎒 Inventario</div>
-          <div style={{ fontSize: 16, fontWeight: 700, marginTop: 2 }}>Objetos del CEO</div>
+          <div className="eyebrow">🎒 Inventario</div>
+          <div className="panel-title">Objetos del CEO · {formatMoney(money)}</div>
         </div>
-        <button onClick={toggleInventory} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 20 }}>✕</button>
+        <button className="close" onClick={toggle}>✕</button>
       </div>
 
-      {inventory.length === 0 ? (
-        <div style={{ textAlign: "center", color: "rgba(255,255,255,0.3)", padding: "24px 0", fontSize: 13 }}>
-          El inventario está vacío
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {inventory.map(item => (
-            <div key={item.id} style={{
-              display: "flex", alignItems: "center", gap: 12, padding: "10px 12px",
-              background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
-              borderRadius: 8,
-            }}>
-              <span style={{ fontSize: 24 }}>{item.icon}</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{item.name}</div>
-                {item.description && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>{item.description}</div>}
-                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 2 }}>
-                  Cantidad: {item.quantity} &nbsp;·&nbsp; Tipo: {item.type}
-                </div>
+      <div className="section-title">Armas (1/2/3 o Q para cambiar)</div>
+      <div className="list">
+        {WEAPON_ORDER.map(id => {
+          const w = WEAPONS[id];
+          const owned = weapons.includes(id);
+          return (
+            <div key={id} className={`item ${activeWeapon === id ? "active" : ""} ${owned ? "" : "locked"}`}>
+              <span className="item-icon">{w.icon}</span>
+              <div className="item-body">
+                <div className="item-name">{w.name}{activeWeapon === id ? " · equipada" : ""}</div>
+                <div className="item-desc">{w.description} Daño {w.damage} · alcance {w.range} m{w.ranged ? ` · munición ${ammo}` : ""}</div>
               </div>
-              {item.type === "health" && (
-                <button className="btn btn-gold" onClick={() => useItem(item.id, item.type)} style={{ fontSize: 11, padding: "4px 10px" }}>
-                  Usar
-                </button>
+              {owned ? (
+                <button className="btn btn-gold" disabled={activeWeapon === id} onClick={() => setActiveWeapon(id)}>Equipar</button>
+              ) : (
+                <span className="item-desc">Se compra al Vendedor · {formatMoney(w.price)}</span>
               )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="section-title">Objetos</div>
+      {inventory.length === 0 ? (
+        <div className="empty">El inventario está vacío</div>
+      ) : (
+        <div className="list">
+          {inventory.map(item => (
+            <div key={item.id} className="item">
+              <span className="item-icon">{item.icon}</span>
+              <div className="item-body">
+                <div className="item-name">{item.name} <span className="qty">×{item.quantity}</span></div>
+                {item.description && <div className="item-desc">{item.description}</div>}
+              </div>
+              {item.type === "health" && <button className="btn btn-gold" onClick={() => useItem(item.id)}>Usar (R)</button>}
             </div>
           ))}
         </div>
       )}
-
-      <div style={{ marginTop: 16, fontSize: 10, color: "rgba(255,255,255,0.2)", textAlign: "center" }}>
-        Presiona I para cerrar
-      </div>
+      <div className="panel-foot">I o Esc para cerrar</div>
     </div>
   );
 }

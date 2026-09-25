@@ -1,85 +1,109 @@
 # CEO Empire 🎩👑
 
-> GTA V-style open world browser game — built with React Three Fiber + Zustand
+> Juego 3D de mundo abierto en el navegador, estilo GTA — React Three Fiber + Zustand + Vite.
 
-Part of the **Shopy Crafter** platform. Play as a CEO building a business empire in a 3D city.
+Parte de la plataforma **Shopy Crafter**. Eres un CEO que construye su imperio en una ciudad
+de 49 manzanas: misiones, negocios con ingresos pasivos, empleados, coches, combate, policía,
+ciclo día/noche y guardado automático.
 
-## 🎮 Gameplay
+## 🎮 Jugabilidad
 
-- **Open world city** with 30+ buildings, parks, roads and street lights
-- **5 playable missions** — from picking up the briefcase to becoming CEO of the year
-- **8 buyable businesses** — from a digital café to the AI Tower (passive income)
-- **11 NPCs** — friendly advisors, hostile rivals and bosses (Lord Tuétano, Arthas, Illidan…)
-- **5 driveable cars** — Ferrari, Lamborghini, Tesla, Rolls, Porsche
-- **Dynamic day/night cycle** — sunrise, golden hour, night with street lights
-- **Full HUD** — health/karma bars, money, wanted stars, minimap, inventory
+- **Ciudad procedural** de 7×7 manzanas con calles, aceras, farolas con luz real, parques,
+  rascacielos con ventanas iluminadas de noche, HQ, helipuerto, kiosco del Vendedor y 4 guaridas.
+- **12 misiones con historia**: recoger, comprar, entrega cronometrada, eliminar matones,
+  jefes, expansión, recolección de chips, contratación… hasta «CEO del Año» y pantalla de victoria.
+- **8 negocios comprables y mejorables** (3 niveles) que generan dinero cada segundo;
+  **6 empleados** contratables (+10 % ingresos cada uno).
+- **Combate**: puños, bate y pistola con munición; enemigos con vida, botín, reaparición;
+  **4 jefes** únicos (Lord Tuétano, Illidan, Majin CEO, Arthas) con barra de vida.
+- **Policía y nivel de búsqueda** (5 estrellas) por atacar civiles; se disipa con el tiempo.
+- **6 coches conducibles** con aceleración, giro, freno de mano, choques y atropellos.
+- **Objetos por la ciudad**: maletines de dinero, kits médicos, munición.
+- **Ciclo día/noche** de 20 minutos con sol, luna, estrellas, niebla y ventanas encendidas.
+- **HUD completo**: salud, karma, dinero, ingresos, búsqueda, reloj, arma, misión, cronómetro,
+  pistas contextuales, notificaciones, barra de jefe, minimapa con objetivo y distancia.
+- **Personajes 3D generados por código** (4 CEOs jugables con ventajas distintas, 12 ciudadanos,
+  matones, policías y jefes) con animaciones; soporte opcional de modelos GLB/STL propios.
+- **Sonido sintetizado** (WebAudio, sin ficheros): golpes, disparos, caja, motor, sirena, jingles.
+- **Guardado automático** en el navegador y botón «Continuar»; muerte con reaparición en el hospital.
 
-## 🕹️ Controls
+## 🕹️ Controles
 
-| Key | Action |
-|-----|--------|
-| `WASD` / `↑↓←→` | Move |
-| Mouse (click to lock) | Rotate camera |
-| `F` | Talk to nearby NPC |
-| `E` | Enter vehicle / Start mission |
-| `B` | Buy nearby business |
-| `I` | Open inventory |
-| Left click | Attack |
-| `Shift` | Sprint |
+| Tecla | Acción |
+|-------|--------|
+| `W A S D` / flechas | Moverse |
+| Ratón (clic en el juego para capturar) | Girar la cámara · rueda = zoom |
+| `Shift` | Correr |
+| `Espacio` | Saltar · freno de mano en coche |
+| Clic izquierdo | Atacar / disparar |
+| `1` `2` `3` / `Q` | Cambiar de arma |
+| `R` | Usar kit médico |
+| `F` | Hablar con un NPC (misiones, tienda, contratar) |
+| `E` | Entrar / salir del coche |
+| `B` | Comprar negocio cercano |
+| `U` | Mejorar negocio cercano |
+| `I` | Inventario |
+| `Tab` | Panel de imperio (negocios, misiones, estadísticas) |
+| `H` | Ayuda |
+| `M` | Silenciar |
+| `Esc` | Pausa / cerrar ventanas |
 
-## 🏗️ Tech Stack
-
-- **React Three Fiber** — 3D scene, shadows, ACES tonemapping
-- **@react-three/drei** — GLB model loading, HTML overlays
-- **Zustand** — game state (health, money, karma, missions, inventory…)
-- **Vite** — dev server + bundler
-- **TypeScript**
-
-## 📁 Structure
-
-```
-src/
-├── App.tsx              # Root — menu / game / dead screen
-├── game/
-│   ├── Game.tsx         # R3F Canvas
-│   ├── World.tsx        # City geometry, buildings, markers
-│   ├── Player.tsx       # WASD + mouse camera + GLB character
-│   ├── NPCSystem.tsx    # NPC AI (wander / chase / attack)
-│   ├── VehicleSystem.tsx# Car meshes + proximity detection
-│   ├── MissionSystem.tsx# Mission objectives + completion
-│   └── DayNight.tsx     # 24h sun/sky/lighting cycle
-├── ui/
-│   ├── MainMenu.tsx     # Character selection
-│   ├── HUD.tsx          # Health, money, wanted, clock, hints
-│   ├── MiniMap.tsx      # Canvas 2D radar
-│   ├── DialogBox.tsx    # NPC dialogue overlay
-│   └── Inventory.tsx    # Item management
-└── lib/
-    ├── gameStore.ts     # Zustand store
-    └── gameData.ts      # Missions, businesses, NPCs, vehicles
-```
-
-## 🚀 Getting Started
+## 🚀 Puesta en marcha
 
 ```bash
 npm install
-npm run dev
+npm run dev        # http://localhost:5173
+npm run build      # typecheck + build de producción en dist/
+npm run preview    # sirve dist/
 ```
 
-Or with pnpm (monorepo context):
+Variables opcionales: `PORT` (puerto) y `BASE_PATH` (ruta base para desplegar en subcarpeta).
+Requiere un navegador con WebGL (Chrome, Edge o Firefox actualizados). Pensado para escritorio.
 
-```bash
-pnpm --filter @workspace/ceo-empire run dev
+## 🧩 Modelos 3D propios
+
+Copia tus `.glb` o `.stl` en `public/assets/models/` con los nombres indicados en
+[`public/assets/models/README.md`](public/assets/models/README.md) y el juego los cargará
+automáticamente (escala, centrado y animaciones por nombre). Sin ficheros, usa los personajes procedurales.
+
+## 🏗️ Stack
+
+- **React Three Fiber** + **three** — escena 3D, sombras, cielo con shader, luces dinámicas
+- **@react-three/drei** — carga GLB y animaciones
+- **Zustand** — estado del juego (progreso, economía, misiones, UI)
+- **Vite** + **TypeScript** (modo estricto)
+
+## 📁 Estructura
+
+```
+src/
+├── App.tsx                 # Menú / juego / overlays
+├── main.tsx
+├── index.css               # Estilos del HUD y menús
+├── lib/
+│   ├── gameData.ts         # Misiones, negocios, NPCs, coches, armas, tienda y trazado de la ciudad
+│   ├── gameStore.ts        # Store Zustand + guardado en localStorage
+│   ├── world.ts            # Estado en tiempo real (posiciones, input) y colisiones
+│   ├── audio.ts            # Efectos de sonido sintetizados
+│   └── textures.ts         # Texturas generadas (ventanas, asfalto, césped, rótulos)
+├── game/
+│   ├── Game.tsx            # Canvas R3F
+│   ├── World.tsx           # Ciudad: calles, edificios, parques, farolas, HQ, helipuerto…
+│   ├── Characters.tsx      # Personajes procedurales + carga opcional GLB/STL
+│   ├── Player.tsx          # Movimiento, cámara, combate, recogida, ingresos, autoguardado
+│   ├── NPCSystem.tsx       # IA de NPCs, policía, barras de vida
+│   ├── npcLogic.ts         # Daño, muerte y botín
+│   ├── interactions.ts     # Diálogos, misiones, tienda, contratación
+│   ├── VehicleSystem.tsx   # Coches y conducción
+│   ├── MissionSystem.tsx   # Objetivos, cronómetro y baliza
+│   ├── Pickups.tsx         # Objetos del mundo
+│   └── DayNight.tsx        # Ciclo día/noche
+└── ui/
+    ├── MainMenu.tsx  HUD.tsx  MiniMap.tsx  DialogBox.tsx
+    ├── Inventory.tsx  EmpirePanel.tsx  Overlays.tsx (pausa, ayuda, muerte, victoria)
+    └── (src/components, src/hooks y src/pages son restos de plantilla no usados por el juego)
 ```
 
-## 🧩 3D Models
-
-All GLB models are in `public/assets/models/`. Characters include:
-- `alec_monopoly.glb` — Alec CEO (playable)
-- `chico_formal.glb`, `chica_ejecutiva.glb`, `chica_creativa.glb` — playable CEOs
-- `lord_tuetano.glb`, `arthas.glb`, `illidan.glb`, `bowser.glb` — bosses/enemies
-- `majin_bu.glb`, `mini_goku.glb`, `trono.glb` — NPCs
-
-## 📄 License
+## 📄 Licencia
 
 MIT

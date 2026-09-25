@@ -1,59 +1,75 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useGame } from "../lib/gameStore";
-import { CHARACTER_MODELS } from "../lib/gameData";
+import { CHARACTERS } from "../lib/gameData";
+import { sfx, unlockAudio } from "../lib/audio";
+
+function hasWebGL() {
+  try {
+    const c = document.createElement("canvas");
+    return !!(c.getContext("webgl2") || c.getContext("webgl"));
+  } catch { return false; }
+}
 
 export function MainMenu() {
-  const [selected, setSelected] = useState("alec_monopoly");
-  const { setPhase, setSelectedCharacter } = useGame();
+  const [selected, setSelected] = useState(useGame.getState().selectedCharacter || "alec");
+  const [showControls, setShowControls] = useState(false);
+  const hasSave = useGame(s => s.hasSave);
+  const newGame = useGame(s => s.newGame);
+  const continueGame = useGame(s => s.continueGame);
+  const [webgl, setWebgl] = useState(true);
+  useEffect(() => { setWebgl(hasWebGL()); }, []);
 
-  const chars = [
-    { key: "alec_monopoly",   label: "Alec CEO",       icon: "🎩", desc: "El millonario del mercado" },
-    { key: "chico_formal",    label: "CEO Formal",     icon: "👔", desc: "Elegante y estratégico" },
-    { key: "chica_ejecutiva", label: "CEO Ejecutiva",  icon: "💼", desc: "Liderazgo con estilo" },
-    { key: "chica_creativa",  label: "CEO Creativa",   icon: "🎨", desc: "Innovación sin límites" },
-  ];
-
-  const start = () => {
-    setSelectedCharacter(selected);
-    setPhase("playing");
-  };
+  const start = () => { unlockAudio(); sfx.select(); newGame(selected); };
+  const cont = () => { unlockAudio(); sfx.select(); continueGame(); };
 
   return (
     <div className="main-menu">
-      <h1 className="game-title">CEO EMPIRE</h1>
-      <p className="game-subtitle">Shopy Crafter — Open World</p>
+      <div className="menu-bg" />
+      <div className="menu-content">
+        <h1 className="game-title">CEO EMPIRE</h1>
+        <p className="game-subtitle">Shopy Crafter — Mundo abierto</p>
 
-      <div style={{ marginBottom: 32, maxWidth: 480, textAlign: "center", color: "rgba(255,255,255,0.55)", fontSize: 13, lineHeight: 1.6 }}>
-        Conviértete en el CEO más poderoso de la ciudad. Construye tu imperio,
-        elimina rivales y lleva tu negocio a la cima.
-      </div>
+        {!webgl && (
+          <div className="warning-box">Tu navegador no soporta WebGL. Prueba con Chrome, Edge o Firefox actualizados.</div>
+        )}
 
-      <div style={{ marginBottom: 12, fontSize: 12, color: "rgba(255,255,255,0.4)", letterSpacing: 2, textTransform: "uppercase" }}>
-        Elige tu CEO
-      </div>
+        <p className="menu-intro">
+          Conviértete en el CEO más poderoso de la ciudad: completa 12 misiones, compra y mejora 8 negocios,
+          contrata empleados, conduce, derrota a los CEOs rivales y cierra el trato del siglo.
+        </p>
 
-      <div className="char-grid">
-        {chars.map(c => (
-          <div
-            key={c.key}
-            className={`char-card ${selected === c.key ? "selected" : ""}`}
-            onClick={() => setSelected(c.key)}
-          >
-            <span style={{ fontSize: 32, display: "block", marginBottom: 8 }}>{c.icon}</span>
-            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>{c.label}</div>
-            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>{c.desc}</div>
+        <div className="menu-label">Elige tu CEO</div>
+        <div className="char-grid">
+          {CHARACTERS.map(c => (
+            <button
+              key={c.key}
+              className={`char-card ${selected === c.key ? "selected" : ""}`}
+              onClick={() => { unlockAudio(); sfx.click(); setSelected(c.key); }}
+            >
+              <span className="char-icon">{c.icon}</span>
+              <div className="char-name">{c.label}</div>
+              <div className="char-desc">{c.description}</div>
+              <div className="char-perk">★ {c.perk}</div>
+            </button>
+          ))}
+        </div>
+
+        <div className="menu-buttons">
+          <button className="start-btn" onClick={start} disabled={!webgl}>🚀 Nueva partida</button>
+          {hasSave && <button className="start-btn secondary" onClick={cont} disabled={!webgl}>💾 Continuar</button>}
+          <button className="btn" onClick={() => { sfx.click(); setShowControls(v => !v); }}>🎮 Controles</button>
+        </div>
+
+        {showControls && (
+          <div className="controls-box">
+            <div><kbd>W A S D</kbd> Moverse · <kbd>Shift</kbd> Correr · <kbd>Espacio</kbd> Saltar · <kbd>Ratón</kbd> Cámara (clic para capturar)</div>
+            <div><kbd>Clic izq.</kbd> Atacar · <kbd>1 2 3</kbd> / <kbd>Q</kbd> Cambiar arma · <kbd>R</kbd> Usar kit médico</div>
+            <div><kbd>F</kbd> Hablar · <kbd>E</kbd> Entrar/salir del coche · <kbd>B</kbd> Comprar negocio · <kbd>U</kbd> Mejorar negocio</div>
+            <div><kbd>I</kbd> Inventario · <kbd>Tab</kbd> Imperio · <kbd>H</kbd> Ayuda · <kbd>M</kbd> Sonido · <kbd>Esc</kbd> Pausa</div>
           </div>
-        ))}
-      </div>
+        )}
 
-      <button className="start-btn" onClick={start}>
-        🚀 Iniciar Imperio
-      </button>
-
-      <div style={{ marginTop: 32, color: "rgba(255,255,255,0.3)", fontSize: 11, textAlign: "center", lineHeight: 1.8 }}>
-        <div>WASD · Moverse &nbsp;|&nbsp; Ratón · Girar cámara (clic para activar)</div>
-        <div>E · Entrar/Salir vehículo · Interactuar &nbsp;|&nbsp; F · Hablar NPC &nbsp;|&nbsp; I · Inventario</div>
-        <div>Clic izquierdo · Atacar &nbsp;|&nbsp; Space · Saltar &nbsp;|&nbsp; B · Comprar negocio cercano</div>
+        <div className="menu-footer">Se guarda automáticamente en tu navegador. Recomendado: Chrome o Edge en escritorio.</div>
       </div>
     </div>
   );
