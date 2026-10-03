@@ -1,189 +1,199 @@
+import { useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import { useMemo } from "react";
-import { BUSINESSES, MISSIONS, NPC_CONFIGS } from "../lib/gameData";
+import { BUSINESSES, MISSIONS } from "../lib/gameData";
 import { useGame } from "../lib/gameStore";
+import { CITY_MODEL, propModel } from "../lib/assets";
+import { CITY, groundHeight, nightFactor, type PropInstance } from "../lib/city";
+import { runtime } from "./runtime";
 
-function Building({ pos, w, d, h, color }: { pos: [number, number, number]; w: number; d: number; h: number; color: string }) {
+/** Materials whose emission should only show at night. */
+const NIGHT_EMISSIVE = /^(facade_|storefront|lamp_bulb)/;
+
+function useNightMaterials(root: THREE.Object3D) {
+  return useMemo(() => {
+    const out: { mat: THREE.MeshStandardMaterial; day: number; night: number }[] = [];
+    const seen = new Set<THREE.Material>();
+    root.traverse(o => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
+        if (seen.has(mat) || !NIGHT_EMISSIVE.test(mat.name)) continue;
+        seen.add(mat);
+        const std = mat as THREE.MeshStandardMaterial;
+        const facade = mat.name.startsWith("facade_");
+        out.push({ mat: std, day: facade ? 0 : 0.15, night: facade ? 1.6 : mat.name === "lamp_bulb" ? 4 : 1.4 });
+      }
+    });
+    return out;
+  }, [root]);
+}
+
+function City() {
+  const { scene } = useGLTF(CITY_MODEL);
+  const night = useNightMaterials(scene);
+  useMemo(() => {
+    scene.traverse(o => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      m.receiveShadow = true;
+      m.castShadow = true;
+      for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
+        const std = mat as THREE.MeshStandardMaterial;
+        if (std.map) std.map.anisotropy = 8;
+        if (mat.name.startsWith("paint_")) {
+          // road markings sit a hair above the asphalt
+          std.polygonOffset = true;
+          std.polygonOffsetFactor = -2;
+        }
+      }
+    });
+  }, [scene]);
+
+  useFrame(() => {
+    const n = nightFactor(useGame.getState().dayTime);
+    for (const e of night) e.mat.emissiveIntensity = e.day + (e.night - e.day) * n;
+  });
+  return <primitive object={scene} />;
+}
+
+/** Render every instance of a prop GLB with one InstancedMesh per sub-mesh. */
+function InstancedProp({ id, items, shadows = true }: { id: string; items: PropInstance[]; shadows?: boolean }) {
+  const { scene } = useGLTF(propModel(id));
+  const night = useNightMaterials(scene);
+  const meshes = useMemo(() => {
+    scene.updateMatrixWorld(true);
+    const parts: { geo: THREE.BufferGeometry; mat: THREE.Material; local: THREE.Matrix4 }[] = [];
+    scene.traverse(o => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh) parts.push({ geo: m.geometry, mat: m.material as THREE.Material, local: m.matrixWorld.clone() });
+    });
+    const tmp = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const up = new THREE.Vector3(0, 1, 0);
+    return parts.map(({ geo, mat, local }) => {
+      const inst = new THREE.InstancedMesh(geo, mat, items.length);
+      items.forEach(([x, z, rot], i) => {
+        q.setFromAxisAngle(up, rot);
+        tmp.compose(new THREE.Vector3(x, groundHeight(x, z), z), q, new THREE.Vector3(1, 1, 1)).multiply(local);
+        inst.setMatrixAt(i, tmp);
+      });
+      inst.instanceMatrix.needsUpdate = true;
+      inst.castShadow = shadows;
+      inst.receiveShadow = true;
+      inst.computeBoundingSphere();
+      return inst;
+    });
+  }, [scene, items, shadows]);
+
+  useFrame(() => {
+    if (!night.length) return;
+    const n = nightFactor(useGame.getState().dayTime);
+    for (const e of night) e.mat.emissiveIntensity = e.day + (e.night - e.day) * n;
+  });
+
+  return <>{meshes.map((m, i) => <primitive key={i} object={m} />)}</>;
+}
+
+/**
+ * Real lights only for the few street lamps closest to the player — the rest
+ * glow through their emissive bulbs. Keeps the shader light count fixed.
+ */
+function StreetLightPool({ count = 6 }: { count?: number }) {
+  const lights = useRef<(THREE.PointLight | null)[]>([]);
+  const lamps = useMemo(() => CITY.props.streetlight.map(([x, z, rot]) =>
+    new THREE.Vector3(x + Math.sin(rot) * 2.1, 7.2, z + Math.cos(rot) * 2.1)), []);
+  const timer = useRef(0);
+
+  useFrame((_, delta) => {
+    const n = nightFactor(useGame.getState().dayTime);
+    timer.current -= delta;
+    if (timer.current <= 0) {
+      timer.current = 0.5;
+      const p = runtime.player;
+      const nearest = [...lamps].sort((a, b) => a.distanceToSquared(p) - b.distanceToSquared(p)).slice(0, count);
+      nearest.forEach((v, i) => lights.current[i]?.position.copy(v));
+    }
+    for (const l of lights.current) if (l) l.intensity = n * 40;
+  });
+
   return (
-    <mesh position={[pos[0], h / 2, pos[2]]} castShadow receiveShadow>
-      <boxGeometry args={[w, h, d]} />
-      <meshStandardMaterial color={color} roughness={0.6} metalness={0.1} />
-    </mesh>
+    <>
+      {Array.from({ length: count }, (_, i) => (
+        <pointLight key={i} ref={el => { lights.current[i] = el; }} color="#ffd38a" distance={22} decay={1.5} intensity={0} />
+      ))}
+    </>
   );
 }
 
-function Road({ x, z, len, axis }: { x: number; z: number; len: number; axis: "x" | "z" }) {
+function Beacon({ color, height = 40, opacity = 0.18 }: { color: string; height?: number; opacity?: number }) {
   return (
-    <mesh
-      position={[x, 0.02, z]}
-      rotation={axis === "x" ? [0, 0, 0] : [0, Math.PI / 2, 0]}
-      receiveShadow
-    >
-      <planeGeometry args={axis === "x" ? [len, 10] : [10, len]} />
-      <meshStandardMaterial color="#2a2a3a" roughness={0.9} />
+    <mesh position={[0, height / 2, 0]}>
+      <cylinderGeometry args={[0.9, 0.9, height, 16, 1, true]} />
+      <meshBasicMaterial color={color} transparent opacity={opacity} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
     </mesh>
   );
 }
 
 function BusinessMarker({ business }: { business: typeof BUSINESSES[0] }) {
-  const { ownedBusinesses } = useGame();
-  const owned = ownedBusinesses.includes(business.id);
+  const owned = useGame(s => s.ownedBusinesses.includes(business.id));
+  const ring = useRef<THREE.Mesh>(null!);
+  const color = owned ? "#2dd49f" : "#ffd700";
+  const y = groundHeight(business.pos[0], business.pos[2]);
+  useFrame(({ clock }) => {
+    if (ring.current) ring.current.rotation.z = clock.elapsedTime * 0.6;
+  });
   return (
-    <group position={business.pos}>
-      <mesh position={[0, 0.1, 0]} receiveShadow>
-        <cylinderGeometry args={[3, 3, 0.2, 32]} />
-        <meshStandardMaterial color={owned ? "#2dd49f" : "#ffd700"} emissive={owned ? "#2dd49f" : "#ffd700"} emissiveIntensity={0.25} />
+    <group position={[business.pos[0], y, business.pos[2]]}>
+      <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
+        <ringGeometry args={[2.4, 3, 48, 1, 0, Math.PI * 1.7]} />
+        <meshBasicMaterial color={color} transparent opacity={0.85} side={THREE.DoubleSide} />
       </mesh>
-      <pointLight position={[0, 3, 0]} intensity={owned ? 0.6 : 0.3} color={owned ? "#2dd49f" : "#ffd700"} distance={8} />
+      <Beacon color={color} height={owned ? 8 : 30} />
     </group>
   );
 }
 
 function MissionMarker({ mission }: { mission: typeof MISSIONS[0] }) {
-  const { activeMissionId } = useGame();
-  const active = activeMissionId === mission.id;
+  const active = useGame(s => s.activeMissionId === mission.id);
+  const disc = useRef<THREE.Mesh>(null!);
+  const y = groundHeight(mission.markerPos[0], mission.markerPos[2]);
+  useFrame(({ clock }) => {
+    if (disc.current) disc.current.position.y = 1.2 + Math.sin(clock.elapsedTime * 2) * 0.25;
+  });
   return (
-    <group position={mission.markerPos}>
-      <mesh position={[0, 0.1, 0]}>
-        <cylinderGeometry args={[2.5, 2.5, 0.2, 32]} />
-        <meshStandardMaterial color={mission.color} emissive={mission.color} emissiveIntensity={active ? 0.6 : 0.15} transparent opacity={0.85} />
+    <group position={[mission.markerPos[0], y, mission.markerPos[2]]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
+        <circleGeometry args={[2.5, 48]} />
+        <meshBasicMaterial color={mission.color} transparent opacity={active ? 0.55 : 0.2} />
       </mesh>
-      {active && <pointLight position={[0, 4, 0]} intensity={1.2} color={mission.color} distance={12} />}
-    </group>
-  );
-}
-
-function Park({ x, z }: { x: number; z: number }) {
-  return (
-    <group position={[x, 0, z]}>
-      <mesh position={[0, 0.05, 0]} receiveShadow>
-        <planeGeometry args={[28, 28]} />
-        <meshStandardMaterial color="#2d5a27" roughness={0.9} />
-      </mesh>
-      {[[-6, -6], [6, -6], [-6, 6], [6, 6], [0, 0]].map(([tx, tz], i) => (
-        <group key={i} position={[tx, 0, tz]}>
-          <mesh position={[0, 2, 0]} castShadow>
-            <cylinderGeometry args={[0.3, 0.4, 4, 8]} />
-            <meshStandardMaterial color="#5c3d2e" />
+      {active && (
+        <>
+          <mesh ref={disc}>
+            <octahedronGeometry args={[0.6]} />
+            <meshStandardMaterial color={mission.color} emissive={mission.color} emissiveIntensity={1.5} />
           </mesh>
-          <mesh position={[0, 5, 0]} castShadow>
-            <sphereGeometry args={[2.2, 8, 6]} />
-            <meshStandardMaterial color="#2d7a2d" roughness={0.8} />
-          </mesh>
-        </group>
-      ))}
+          <Beacon color={mission.color} height={60} opacity={0.25} />
+        </>
+      )}
     </group>
   );
 }
-
-function StreetLight({ x, z }: { x: number; z: number }) {
-  return (
-    <group position={[x, 0, z]}>
-      <mesh position={[0, 4, 0]} castShadow>
-        <cylinderGeometry args={[0.1, 0.15, 8, 6]} />
-        <meshStandardMaterial color="#888" roughness={0.3} metalness={0.8} />
-      </mesh>
-      <mesh position={[0.5, 7.8, 0]}>
-        <boxGeometry args={[1.2, 0.2, 0.3]} />
-        <meshStandardMaterial color="#aaa" emissive="#ffe066" emissiveIntensity={0.8} />
-      </mesh>
-      <pointLight position={[0.5, 7.5, 0]} intensity={0.4} distance={14} color="#ffe066" />
-    </group>
-  );
-}
-
-const BUILDING_SEED: Array<{ x: number; z: number; w: number; d: number; h: number; color: string }> = [
-  // North district
-  { x: 30, z: -50, w: 14, d: 14, h: 42, color: "#8ca0b0" },
-  { x: 50, z: -50, w: 12, d: 12, h: 36, color: "#6d8b9e" },
-  { x: 70, z: -45, w: 16, d: 10, h: 56, color: "#7a8fa0" },
-  { x: 30, z: -75, w: 20, d: 14, h: 62, color: "#9aacb8" },
-  { x: 60, z: -72, w: 12, d: 16, h: 48, color: "#6b8090" },
-  { x: 80, z: -70, w: 14, d: 14, h: 28, color: "#8ba090" },
-  // South district
-  { x: 30, z: 50, w: 18, d: 12, h: 32, color: "#b0956a" },
-  { x: 55, z: 50, w: 14, d: 14, h: 22, color: "#a0855a" },
-  { x: 75, z: 52, w: 10, d: 16, h: 40, color: "#c0a876" },
-  { x: 35, z: 75, w: 22, d: 12, h: 18, color: "#b8a070" },
-  { x: 65, z: 78, w: 16, d: 10, h: 30, color: "#a08060" },
-  // West district
-  { x: -45, z: -45, w: 14, d: 14, h: 44, color: "#9090b0" },
-  { x: -70, z: -50, w: 12, d: 18, h: 36, color: "#8080a0" },
-  { x: -55, z: -75, w: 16, d: 12, h: 52, color: "#a0a0c0" },
-  { x: -75, z: -75, w: 14, d: 14, h: 30, color: "#9898b8" },
-  { x: -45, z: 45, w: 16, d: 12, h: 26, color: "#b090b0" },
-  { x: -70, z: 55, w: 12, d: 14, h: 38, color: "#a080a0" },
-  { x: -55, z: 75, w: 18, d: 12, h: 48, color: "#9078a0" },
-  // East district
-  { x: 95, z: -30, w: 14, d: 14, h: 34, color: "#b8a080" },
-  { x: 110, z: -55, w: 12, d: 16, h: 50, color: "#c0b090" },
-  { x: 100, z: 25, w: 18, d: 12, h: 22, color: "#a89070" },
-  // Downtown center
-  { x: -10, z: -30, w: 22, d: 18, h: 80, color: "#7890a8" },
-  { x: 10, z: -50, w: 16, d: 16, h: 70, color: "#8898a8" },
-  { x: -15, z: -55, w: 12, d: 12, h: 58, color: "#6080a0" },
-  { x: -30, z: -35, w: 14, d: 20, h: 48, color: "#708898" },
-  { x: 5, z: -75, w: 20, d: 14, h: 66, color: "#8090a0" },
-  // Small shops
-  { x: 18, z: 18, w: 10, d: 8, h: 8, color: "#c89060" },
-  { x: -18, z: 18, w: 8, d: 10, h: 6, color: "#c0a070" },
-  { x: 18, z: -18, w: 10, d: 8, h: 7, color: "#b89060" },
-  { x: -20, z: -20, w: 8, d: 10, h: 5, color: "#c09060" },
-];
 
 export function World() {
-  const streetLightPositions = useMemo(() => {
-    const pos: Array<[number, number]> = [];
-    for (let i = -100; i <= 100; i += 20) {
-      pos.push([i, -8]);
-      pos.push([i,  8]);
-      pos.push([-8, i]);
-      pos.push([ 8, i]);
-    }
-    return pos;
-  }, []);
-
   return (
     <group>
-      {/* Ground */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, 0, 0]}>
-        <planeGeometry args={[500, 500]} />
-        <meshStandardMaterial color="#3a3a3a" roughness={0.95} />
-      </mesh>
-
-      {/* Main grid roads */}
-      {[-60, -20, 20, 60].map(offset => (
-        <Road key={`rx${offset}`} x={0} z={offset} len={260} axis="x" />
-      ))}
-      {[-60, -20, 20, 60].map(offset => (
-        <Road key={`rz${offset}`} x={offset} z={0} len={260} axis="z" />
-      ))}
-
-      {/* Center plaza */}
-      <mesh position={[0, 0.03, 0]} receiveShadow>
-        <cylinderGeometry args={[12, 12, 0.06, 32]} />
-        <meshStandardMaterial color="#4a4a5a" roughness={0.7} />
-      </mesh>
-
-      {/* Buildings */}
-      {BUILDING_SEED.map((b, i) => (
-        <Building key={i} pos={[b.x, 0, b.z]} w={b.w} d={b.d} h={b.h} color={b.color} />
-      ))}
-
-      {/* Parks */}
-      <Park x={-80} z={-80} />
-      <Park x={90} z={75} />
-
-      {/* Street lights */}
-      {streetLightPositions.map(([x, z], i) => (
-        <StreetLight key={i} x={x} z={z} />
-      ))}
-
-      {/* Business markers */}
+      <City />
+      {Object.entries(CITY.props).map(([id, items]) =>
+        items.length ? <InstancedProp key={id} id={id} items={items} shadows={id !== "hydrant" && id !== "trash_bin"} /> : null,
+      )}
+      <StreetLightPool />
       {BUSINESSES.map(b => <BusinessMarker key={b.id} business={b} />)}
-
-      {/* Mission markers */}
       {MISSIONS.map(m => <MissionMarker key={m.id} mission={m} />)}
     </group>
   );
 }
+
+useGLTF.preload(CITY_MODEL);
+Object.keys(CITY.props).forEach(id => useGLTF.preload(propModel(id)));

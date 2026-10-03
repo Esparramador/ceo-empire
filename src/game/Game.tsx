@@ -8,6 +8,13 @@ import { NPCSystem } from "./NPCSystem";
 import { VehicleSystem } from "./VehicleSystem";
 import { MissionSystem } from "./MissionSystem";
 
+if (import.meta.env.DEV) {
+  // Debug handle for automated play-testing (dev server only).
+  void Promise.all([import("./runtime"), import("../lib/gameStore"), import("./VehicleSystem")]).then(([r, g, v]) => {
+    (window as any).__ceo = { runtime: r.runtime, useGame: g.useGame, carStates: v.carStates };
+  });
+}
+
 export function Game() {
   return (
     <div style={{ position: "fixed", inset: 0, width: "100%", height: "100%" }}>
@@ -18,7 +25,8 @@ export function Game() {
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 1.1,
         }}
-        camera={{ fov: 65, near: 0.15, far: 400, position: [0, 5, 40] }}
+        dpr={[1, 1.75]}
+        camera={{ fov: 62, near: 0.1, far: 600, position: [0, 5, 40] }}
         style={{ background: "#000" }}
       >
         <Suspense fallback={null}>

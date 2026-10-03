@@ -20,6 +20,8 @@ interface GameStore {
   playerPos: [number, number, number];
   playerFacing: number;
   inVehicle: boolean;
+  activeVehicleId: string | null;
+  vehicleSpeed: number;
   selectedCharacter: string;
   inventory: InventoryItem[];
   activeMissionId: string | null;
@@ -53,6 +55,9 @@ interface GameStore {
   setPlayerPos(pos: [number, number, number]): void;
   setPlayerFacing(f: number): void;
   setInVehicle(v: boolean): void;
+  enterVehicle(id: string): void;
+  exitVehicle(): void;
+  setVehicleSpeed(kmh: number): void;
   setSelectedCharacter(c: string): void;
   addItem(item: InventoryItem): void;
   removeItem(id: string): void;
@@ -81,9 +86,11 @@ export const useGame = create<GameStore>((set, get) => ({
   karma: 0,
   wantedLevel: 0,
   dayTime: 10,
-  playerPos: [0, 0, 30],
+  playerPos: [0, 0, 26],
   playerFacing: 0,
   inVehicle: false,
+  activeVehicleId: null,
+  vehicleSpeed: 0,
   selectedCharacter: "alec_monopoly",
   inventory: [
     { id: "phone", name: "Teléfono Ejecutivo", type: "quest", quantity: 1, icon: "📱", description: "Tu arma de negocios más poderosa" },
@@ -114,8 +121,8 @@ export const useGame = create<GameStore>((set, get) => ({
   reset: () => set({
     phase: "menu",
     health: 100, money: 5000, karma: 0, wantedLevel: 0,
-    dayTime: 10, playerPos: [0, 0, 30], playerFacing: 0,
-    inVehicle: false, activeMissionId: "mission_1",
+    dayTime: 10, playerPos: [0, 0, 26], playerFacing: 0,
+    inVehicle: false, activeVehicleId: null, vehicleSpeed: 0, activeMissionId: "mission_1",
     completedMissions: [], currentObjective: "Ve al marcador azul y recoge el maletín de datos",
     missionTimer: 0, ownedBusinesses: [], passiveIncomePerSec: 0,
     killCount: 0, dialogOpen: false, showInventory: false,
@@ -146,7 +153,10 @@ export const useGame = create<GameStore>((set, get) => ({
 
   setPlayerPos: (pos) => set({ playerPos: pos }),
   setPlayerFacing: (f) => set({ playerFacing: f }),
-  setInVehicle: (v) => set({ inVehicle: v }),
+  setInVehicle: (v) => set(v ? { inVehicle: true } : { inVehicle: false, activeVehicleId: null, vehicleSpeed: 0 }),
+  enterVehicle: (id) => set({ inVehicle: true, activeVehicleId: id, nearbyVehicleId: null }),
+  exitVehicle: () => set({ inVehicle: false, activeVehicleId: null, vehicleSpeed: 0 }),
+  setVehicleSpeed: (kmh) => set({ vehicleSpeed: kmh }),
   setSelectedCharacter: (c) => set({ selectedCharacter: c }),
 
   addItem: (item) =>

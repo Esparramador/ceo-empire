@@ -1,6 +1,9 @@
 import { useEffect, useRef } from "react";
 import { useGame } from "../lib/gameStore";
-import { BUSINESSES, MISSIONS, NPC_CONFIGS } from "../lib/gameData";
+import { BUSINESSES, MISSIONS, NPC_CONFIGS, VEHICLE_CONFIGS } from "../lib/gameData";
+import { CITY } from "../lib/city";
+import { runtime } from "../game/runtime";
+import { carStates } from "../game/VehicleSystem";
 
 const MAP_RADIUS = 80;
 const WORLD_SCALE = 240;
@@ -34,16 +37,36 @@ export function MiniMap() {
     ctx.arc(size/2, size/2, size/2, 0, Math.PI*2);
     ctx.fill();
 
-    // Grid lines (roads)
-    ctx.strokeStyle = "rgba(255,255,255,0.06)";
-    ctx.lineWidth = 0.5;
-    for (let i = -200; i <= 200; i += 20) {
-      const [x1] = worldToMap(i, -200, px, pz, size);
-      const [x2] = worldToMap(i,  200, px, pz, size);
-      const [, y1] = worldToMap(-200, i, px, pz, size);
-      const [, y2] = worldToMap( 200, i, px, pz, size);
-      ctx.beginPath(); ctx.moveTo(x1, 0); ctx.lineTo(x2, size); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, y1); ctx.lineTo(size, y2); ctx.stroke();
+    const k = size / WORLD_SCALE;
+    // Roads
+    ctx.strokeStyle = "rgba(160,170,190,0.35)";
+    ctx.lineWidth = CITY.roads.halfWidth * 2 * k;
+    const E = CITY.roads.extent;
+    for (const r of CITY.roads.centers) {
+      let [a, b] = worldToMap(-E, r, px, pz, size); let [c, d] = worldToMap(E, r, px, pz, size);
+      ctx.beginPath(); ctx.moveTo(a, b); ctx.lineTo(c, d); ctx.stroke();
+      [a, b] = worldToMap(r, -E, px, pz, size); [c, d] = worldToMap(r, E, px, pz, size);
+      ctx.beginPath(); ctx.moveTo(a, b); ctx.lineTo(c, d); ctx.stroke();
+    }
+    // Parks + buildings
+    ctx.fillStyle = "rgba(60,140,60,0.45)";
+    for (const p of CITY.parks) {
+      const [mx, my] = worldToMap(p.x - p.size / 2, p.z - p.size / 2, px, pz, size);
+      ctx.fillRect(mx, my, p.size * k, p.size * k);
+    }
+    ctx.fillStyle = "rgba(120,135,160,0.55)";
+    for (const b of CITY.buildings) {
+      const [mx, my] = worldToMap(b.x - b.w / 2, b.z - b.d / 2, px, pz, size);
+      if (mx > size || my > size || mx + b.w * k < 0 || my + b.d * k < 0) continue;
+      ctx.fillRect(mx, my, b.w * k, b.d * k);
+    }
+    // Cars
+    ctx.fillStyle = "#93c5fd";
+    for (const v of VEHICLE_CONFIGS) {
+      const s = carStates[v.id];
+      if (!s) continue;
+      const [mx, my] = worldToMap(s.pos.x, s.pos.z, px, pz, size);
+      ctx.fillRect(mx - 2, my - 2, 4, 4);
     }
 
     // Businesses
@@ -70,7 +93,9 @@ export function MiniMap() {
 
     // NPCs
     NPC_CONFIGS.filter(n => n.type === "hostile" || n.type === "boss").forEach(n => {
-      const [mx, my] = worldToMap(n.pos[0], n.pos[2], px, pz, size);
+      const live = runtime.npcs[n.id];
+      if (live?.dead) return;
+      const [mx, my] = live ? worldToMap(live.pos.x, live.pos.z, px, pz, size) : worldToMap(n.pos[0], n.pos[2], px, pz, size);
       if (mx < 0 || mx > size || my < 0 || my > size) return;
       ctx.beginPath();
       ctx.arc(mx, my, 2, 0, Math.PI*2);
@@ -81,7 +106,7 @@ export function MiniMap() {
     // Player
     ctx.save();
     ctx.translate(size/2, size/2);
-    ctx.rotate(playerFacing);
+    ctx.rotate(Math.PI - playerFacing);
     ctx.beginPath();
     ctx.moveTo(0, -6);
     ctx.lineTo(-4, 4);

@@ -30,7 +30,7 @@ export default function App() {
     <>
       {phase === "menu" && <MainMenu />}
 
-      {(phase === "playing" || phase === "paused") && (
+      {phase === "playing" && (
         <>
           <Suspense fallback={
             <div style={{ position: "fixed", inset: 0, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>

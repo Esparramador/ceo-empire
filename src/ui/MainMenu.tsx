@@ -51,9 +51,10 @@ export function MainMenu() {
       </button>
 
       <div style={{ marginTop: 32, color: "rgba(255,255,255,0.3)", fontSize: 11, textAlign: "center", lineHeight: 1.8 }}>
-        <div>WASD · Moverse &nbsp;|&nbsp; Ratón · Girar cámara (clic para activar)</div>
-        <div>E · Entrar/Salir vehículo · Interactuar &nbsp;|&nbsp; F · Hablar NPC &nbsp;|&nbsp; I · Inventario</div>
-        <div>Clic izquierdo · Atacar &nbsp;|&nbsp; Space · Saltar &nbsp;|&nbsp; B · Comprar negocio cercano</div>
+        <div>WASD · Moverse (Shift correr) &nbsp;|&nbsp; Ratón · Girar cámara (clic para activar)</div>
+        <div>E · Entrar/Salir del coche · Iniciar misión &nbsp;|&nbsp; F · Hablar NPC &nbsp;|&nbsp; I · Inventario</div>
+        <div>En coche: W/S acelerar/frenar · A/D girar · Espacio freno de mano</div>
+        <div>Clic izquierdo · Atacar &nbsp;|&nbsp; B · Comprar negocio cercano</div>
       </div>
     </div>
   );
