@@ -1,7 +1,11 @@
+import { useShallow } from "zustand/react/shallow";
 import { useGame } from "../lib/gameStore";
 
 export function DialogBox() {
-  const { dialogOpen, dialogNpcName, dialogText, dialogLoading, closeDialog } = useGame();
+  const { dialogOpen, dialogNpcName, dialogText, dialogLoading, closeDialog } = useGame(useShallow(s => ({
+    dialogOpen: s.dialogOpen, dialogNpcName: s.dialogNpcName, dialogText: s.dialogText,
+    dialogLoading: s.dialogLoading, closeDialog: s.closeDialog,
+  })));
 
   if (!dialogOpen) return null;
 

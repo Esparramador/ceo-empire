@@ -122,7 +122,7 @@ export const NPC_CONFIGS: NpcConfig[] = [
   { id: "npc_elena", name: "Elena Creativa", model: "chica_creativa", type: "friendly", pos: [15, 0, -8], defaultDialogue: "El diseño es el alma del negocio. Juntos crearemos algo extraordinario.", health: 100 },
   { id: "npc_cit1", name: "Carlos", model: "chico_casual", type: "neutral", pos: [30, 0, 20], defaultDialogue: "Oye CEO, ¿me contratas? ¡Tengo mucho talento!", health: 80 },
   { id: "npc_cit2", name: "Peatón", model: "chico_casual", type: "neutral", pos: [-25, 0, 15], defaultDialogue: "Esta ciudad está cambiando mucho. ¡Menuda empresa la tuya!", health: 80 },
-  { id: "npc_cit3", name: "Vendedor", model: "chico_casual", type: "neutral", pos: [50, 0, -30], defaultDialogue: "Vendo datos de clientes premium. ¿Te interesa, CEO?", health: 80 },
+  { id: "npc_cit3", name: "Vendedor", model: "chico_casual", type: "neutral", pos: [50, 0, -27], defaultDialogue: "Vendo datos de clientes premium. ¿Te interesa, CEO?", health: 80 },
   { id: "npc_lord", name: "Lord Tuétano", model: "lord_tuetano", type: "hostile", pos: [95, 0, -80], defaultDialogue: "¡Tu empresa no vale nada! ¡Yo domino este mercado y lo aplasto todo!", health: 200, scale: 1.2 },
   { id: "npc_majin", name: "Majin CEO", model: "majin_bu", type: "hostile", pos: [80, 0, -95], defaultDialogue: "¡MAJIN CEO DESTRUYE TODOS LOS NEGOCIOS! ¡CHOCOLATE!", health: 150, scale: 1.1 },
   { id: "npc_illidan", name: "Illidan Marcados", model: "illidan", type: "hostile", pos: [110, 0, -70], defaultDialogue: "No estás preparado... para competir conmigo en el mercado.", health: 180, scale: 1.15 },

@@ -36,7 +36,15 @@ function initState(cfg: VehicleConfig): CarState {
     wheelbase: 2.7, wheelRadius: 0.35, length: 4.6, width: 2,
   };
 }
-VEHICLE_CONFIGS.forEach(c => { carStates[c.id] = initState(c); });
+/** Park every car back at its spawn point (new game). Mutates in place: cars hold a reference. */
+export function resetCars() {
+  VEHICLE_CONFIGS.forEach(c => {
+    const s = carStates[c.id];
+    if (s) Object.assign(s, initState(c), { wheelbase: s.wheelbase, wheelRadius: s.wheelRadius, length: s.length, width: s.width });
+    else carStates[c.id] = initState(c);
+  });
+}
+resetCars();
 
 function Car({ cfg }: { cfg: VehicleConfig }) {
   const { scene } = useGLTF(vehicleModel(cfg.model));

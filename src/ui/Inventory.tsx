@@ -1,12 +1,16 @@
+import { useShallow } from "zustand/react/shallow";
 import { useGame } from "../lib/gameStore";
 
 export function Inventory() {
-  const { showInventory, inventory, toggleInventory, removeItem, heal } = useGame();
+  const { showInventory, inventory, toggleInventory, removeItem, heal, health } = useGame(useShallow(s => ({
+    showInventory: s.showInventory, inventory: s.inventory, toggleInventory: s.toggleInventory,
+    removeItem: s.removeItem, heal: s.heal, health: s.health,
+  })));
 
   if (!showInventory) return null;
 
   const useItem = (id: string, type: string) => {
-    if (type === "health") {
+    if (type === "health" && health < 100) {
       heal(50);
       removeItem(id);
     }
@@ -43,7 +47,7 @@ export function Inventory() {
                 </div>
               </div>
               {item.type === "health" && (
-                <button className="btn btn-gold" onClick={() => useItem(item.id, item.type)} style={{ fontSize: 11, padding: "4px 10px" }}>
+                <button className="btn btn-gold" disabled={health >= 100} title={health >= 100 ? "Ya tienes la salud al máximo" : undefined} onClick={() => useItem(item.id, item.type)} style={{ fontSize: 11, padding: "4px 10px", opacity: health >= 100 ? 0.4 : 1 }}>
                   Usar
                 </button>
               )}

@@ -41,38 +41,49 @@ Part of the **Shopy Crafter** platform. Play as a CEO building a business empire
 
 ```
 src/
-├── App.tsx              # Root — menu / game / dead screen
+├── App.tsx               # Root — menu / game / dead screen
 ├── game/
-│   ├── Game.tsx         # R3F Canvas
-│   ├── World.tsx        # City geometry, buildings, markers
-│   ├── Player.tsx       # WASD + mouse camera + GLB character
-│   ├── NPCSystem.tsx    # NPC AI (wander / chase / attack)
-│   ├── VehicleSystem.tsx# Car meshes + proximity detection
-│   ├── MissionSystem.tsx# Mission objectives + completion
-│   └── DayNight.tsx     # 24h sun/sky/lighting cycle
+│   ├── Game.tsx          # R3F Canvas + loading screen
+│   ├── World.tsx         # Blender city, instanced props, street-light pool, markers
+│   ├── Player.tsx        # On-foot movement, camera, melee, proximity prompts
+│   ├── Character.tsx     # Character GLB loader (original model or generated stand-in)
+│   ├── NPCSystem.tsx     # NPC AI (wander / chase / attack / knock-down / respawn)
+│   ├── VehicleSystem.tsx # Drivable cars (arcade bicycle model) + chase camera
+│   ├── MissionSystem.tsx # Checks the active mission against the live world
+│   ├── DayNight.tsx      # 24h sun/sky/lighting cycle
+│   └── runtime.ts        # Per-frame state shared by the systems (outside React)
 ├── ui/
-│   ├── MainMenu.tsx     # Character selection
-│   ├── HUD.tsx          # Health, money, wanted, clock, hints
-│   ├── MiniMap.tsx      # Canvas 2D radar
-│   ├── DialogBox.tsx    # NPC dialogue overlay
-│   └── Inventory.tsx    # Item management
+│   ├── MainMenu.tsx      # Character selection
+│   ├── HUD.tsx           # Health, money, wanted, clock, speedometer, hints
+│   ├── MiniMap.tsx       # Canvas 2D radar (10 Hz)
+│   ├── DialogBox.tsx     # NPC dialogue overlay
+│   └── Inventory.tsx     # Item management
 └── lib/
-    ├── gameStore.ts     # Zustand store
-    └── gameData.ts      # Missions, businesses, NPCs, vehicles
+    ├── gameStore.ts      # Zustand store
+    ├── gameData.ts       # Missions, businesses, NPCs, vehicles
+    ├── missions.ts       # Story order and mission objectives (pure, tested)
+    ├── city.ts           # City layout, ground height, collisions
+    └── assets.ts         # Asset URLs (honour BASE_PATH)
 ```
+
+The story is linear: only the next mission's marker is shown and can be
+started with `E`, each mission pays once, and mission 3 needs Lord Tuétano
+knocked down (not just a visit to his lair).
 
 ## 🚀 Getting Started
 
+Node 20+.
+
 ```bash
 npm install
-npm run dev
+npm run dev        # http://localhost:5173 (PORT=xxxx to change it)
+npm test           # unit tests (Vitest): store, missions, city layout, combat
+npm run build      # type-check + production build into dist/public
+npm run preview    # serve the production build
 ```
 
-Or with pnpm (monorepo context):
-
-```bash
-pnpm --filter @workspace/ceo-empire run dev
-```
+`PORT` and `BASE_PATH` are optional environment variables (Replit sets them);
+`BASE_PATH=/juego/ npm run build` builds for a sub-path.
 
 ## 🧩 3D Models
 

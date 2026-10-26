@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { useGame } from "../lib/gameStore";
-import { BUSINESSES, MISSIONS, NPC_CONFIGS } from "../lib/gameData";
+import { BUSINESSES, NPC_CONFIGS } from "../lib/gameData";
+import { nextMission } from "../lib/missions";
 import { groundHeight, resolveCollision } from "../lib/city";
 import { CharacterModel, animateRig, type Rig } from "./Character";
 import { runtime, damageNpc } from "./runtime";
@@ -186,11 +187,9 @@ export function Player() {
     }
     if (closestBiz !== st.nearbyBusinessId) st.setNearbyBusinessId(closestBiz);
 
-    let closestMission: string | null = null; let minMD = 5;
-    for (const m of MISSIONS) {
-      const d = Math.hypot(m.markerPos[0] - p.x, m.markerPos[2] - p.z);
-      if (d < minMD) { minMD = d; closestMission = m.id; }
-    }
+    // Only the next story mission can be started (and none while one is running)
+    const next = st.activeMissionId ? null : nextMission(st.completedMissions);
+    const closestMission = next && Math.hypot(next.markerPos[0] - p.x, next.markerPos[2] - p.z) < 5 ? next.id : null;
     if (closestMission !== st.nearbyMissionId) st.setNearbyMissionId(closestMission);
 
     // --- melee ------------------------------------------------------------------

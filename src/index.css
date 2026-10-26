@@ -3,7 +3,7 @@
 html, body, #root {
   width: 100%; height: 100%; overflow: hidden;
   background: #000;
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
   color: #fff;
   user-select: none;
 }
@@ -142,3 +142,18 @@ canvas { display: block; width: 100% !important; height: 100% !important; }
   border-radius: 16px; padding: 36px 52px;
   text-align: center; max-width: 400px;
 }
+
+/* Loading screen shown over the canvas while the 3D models download */
+.loading-screen {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  background: radial-gradient(circle at 50% 40%, hsl(220 30% 12%), hsl(220 40% 4%));
+}
+.loading-title {
+  font-size: 48px; font-weight: 900;
+  background: linear-gradient(135deg, #ffd700, #ff9500);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.loading-bar { width: min(320px, 70vw); height: 6px; border-radius: 3px; background: rgba(255,255,255,0.1); overflow: hidden; }
+.loading-bar > div { height: 100%; background: linear-gradient(90deg, #ffd700, #ff9500); transition: width 0.2s ease-out; }
+.loading-text { color: rgba(255,255,255,0.5); font-size: 14px; font-variant-numeric: tabular-nums; }

@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { useGame } from "./lib/gameStore";
 import { MainMenu } from "./ui/MainMenu";
 import { HUD } from "./ui/HUD";
@@ -8,7 +7,7 @@ import { Inventory } from "./ui/Inventory";
 import { Game } from "./game/Game";
 
 function DeadScreen() {
-  const { reset } = useGame();
+  const reset = useGame(s => s.reset);
   return (
     <div className="dead-screen">
       <div style={{ fontSize: 64, marginBottom: 8 }}>💀</div>
@@ -24,7 +23,8 @@ function DeadScreen() {
 }
 
 export default function App() {
-  const { phase } = useGame();
+  // Subscribe to the phase only: the store also changes ~10×/s while playing.
+  const phase = useGame(s => s.phase);
 
   return (
     <>
@@ -32,14 +32,7 @@ export default function App() {
 
       {phase === "playing" && (
         <>
-          <Suspense fallback={
-            <div style={{ position: "fixed", inset: 0, background: "#000", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
-              <div style={{ fontSize: 48, fontWeight: 900, background: "linear-gradient(135deg,#ffd700,#ff9500)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>CEO EMPIRE</div>
-              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 14 }}>Cargando la ciudad…</div>
-            </div>
-          }>
-            <Game />
-          </Suspense>
+          <Game />
           <HUD />
           <MiniMap />
           <DialogBox />

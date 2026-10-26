@@ -4,6 +4,7 @@ import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { BUSINESSES, MISSIONS } from "../lib/gameData";
 import { useGame } from "../lib/gameStore";
+import { nextMission } from "../lib/missions";
 import { CITY_MODEL, propModel } from "../lib/assets";
 import { CITY, groundHeight, nightFactor, type PropInstance } from "../lib/city";
 import { runtime } from "./runtime";
@@ -157,11 +158,14 @@ function BusinessMarker({ business }: { business: typeof BUSINESSES[0] }) {
 
 function MissionMarker({ mission }: { mission: typeof MISSIONS[0] }) {
   const active = useGame(s => s.activeMissionId === mission.id);
+  // Show the running mission and the next one to start; hide done and locked ones
+  const visible = useGame(s => active || (!s.activeMissionId && nextMission(s.completedMissions)?.id === mission.id));
   const disc = useRef<THREE.Mesh>(null!);
   const y = groundHeight(mission.markerPos[0], mission.markerPos[2]);
   useFrame(({ clock }) => {
     if (disc.current) disc.current.position.y = 1.2 + Math.sin(clock.elapsedTime * 2) * 0.25;
   });
+  if (!visible) return null;
   return (
     <group position={[mission.markerPos[0], y, mission.markerPos[2]]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
@@ -177,6 +181,7 @@ function MissionMarker({ mission }: { mission: typeof MISSIONS[0] }) {
           <Beacon color={mission.color} height={60} opacity={0.25} />
         </>
       )}
+      {!active && <Beacon color={mission.color} height={40} opacity={0.15} />}
     </group>
   );
 }

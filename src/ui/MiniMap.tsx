@@ -4,8 +4,8 @@ import { BUSINESSES, MISSIONS, NPC_CONFIGS, VEHICLE_CONFIGS } from "../lib/gameD
 import { CITY } from "../lib/city";
 import { runtime } from "../game/runtime";
 import { carStates } from "../game/VehicleSystem";
+import { nextMission } from "../lib/missions";
 
-const MAP_RADIUS = 80;
 const WORLD_SCALE = 240;
 
 function worldToMap(wx: number, wz: number, px: number, pz: number, size: number): [number, number] {
@@ -18,16 +18,28 @@ function worldToMap(wx: number, wz: number, px: number, pz: number, size: number
 
 export function MiniMap() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { playerPos, playerFacing, activeMissionId, ownedBusinesses, phase } = useGame();
+  const phase = useGame(s => s.phase);
 
+  // Redraw on a 10 Hz timer from live state: NPCs and cars move even when the
+  // player stands still, and subscribing to the store would re-render per frame.
   useEffect(() => {
+    if (phase !== "playing") return;
+    const id = setInterval(draw, 100);
+    draw();
+    return () => clearInterval(id);
+  }, [phase]);
+
+  function draw() {
     const canvas = canvasRef.current;
-    if (!canvas || phase !== "playing") return;
+    if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const { activeMissionId, completedMissions, ownedBusinesses } = useGame.getState();
+    const shownMissionId = activeMissionId ?? nextMission(completedMissions)?.id;
+    const playerFacing = runtime.playerFacing;
     const size = canvas.width;
-    const [px, , pz] = playerPos;
+    const px = runtime.player.x, pz = runtime.player.z;
 
     ctx.clearRect(0, 0, size, size);
 
@@ -82,7 +94,7 @@ export function MiniMap() {
 
     // Mission markers
     MISSIONS.forEach(m => {
-      if (m.id !== activeMissionId) return;
+      if (m.id !== shownMissionId) return;
       const [mx, my] = worldToMap(m.markerPos[0], m.markerPos[2], px, pz, size);
       if (mx < 2 || mx > size-2 || my < 2 || my > size-2) return;
       ctx.beginPath();
@@ -122,7 +134,7 @@ export function MiniMap() {
     ctx.beginPath();
     ctx.arc(size/2, size/2, size/2 - 1, 0, Math.PI*2);
     ctx.stroke();
-  });
+  }
 
   if (phase !== "playing") return null;
 

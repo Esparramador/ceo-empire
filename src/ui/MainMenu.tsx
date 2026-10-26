@@ -4,7 +4,8 @@ import { CHARACTER_MODELS } from "../lib/gameData";
 
 export function MainMenu() {
   const [selected, setSelected] = useState("alec_monopoly");
-  const { setPhase, setSelectedCharacter } = useGame();
+  const setPhase = useGame(s => s.setPhase);
+  const setSelectedCharacter = useGame(s => s.setSelectedCharacter);
 
   const chars = [
     { key: "alec_monopoly",   label: "Alec CEO",       icon: "🎩", desc: "El millonario del mercado" },

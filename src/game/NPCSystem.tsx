@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { NPC_CONFIGS, type NpcConfig } from "../lib/gameData";
@@ -21,6 +21,10 @@ function Npc({ cfg }: { cfg: NpcConfig }) {
   const rig = useRef<Rig | null>(null);
   const label = useRef<HTMLDivElement>(null);
   const hostile = cfg.type === "hostile" || cfg.type === "boss";
+  // drei <Html> mounts its DOM root into the events target; mounting before R3F
+  // connects its events makes it re-parent (unmount a root mid-render) once
+  // they connect. Wait for the final target.
+  const eventsConnected = useThree(s => !!s.events.connected);
 
   if (!runtime.npcs[cfg.id]) {
     runtime.npcs[cfg.id] = { pos: new THREE.Vector3(...cfg.pos), hp: cfg.health, dead: false, respawnAt: 0 };
@@ -112,7 +116,7 @@ function Npc({ cfg }: { cfg: NpcConfig }) {
       <group scale={scale}>
         <CharacterModel modelKey={cfg.model} onRig={r => { rig.current = r; }} />
       </group>
-      {hostile && (
+      {hostile && eventsConnected && (
         <Html position={[0, 2.4 * scale, 0]} center distanceFactor={14} style={{ pointerEvents: "none" }}>
           <div ref={label} style={{
             background: "rgba(0,0,0,0.7)", border: "1px solid rgba(255,60,60,0.4)",

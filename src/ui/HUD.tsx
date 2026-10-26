@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { VEHICLE_CONFIGS } from "../lib/gameData";
 import { useGame } from "../lib/gameStore";
 
@@ -57,13 +58,24 @@ function DayNightClock({ dayTime }: { dayTime: number }) {
 }
 
 export function HUD() {
+  // dayTime advances every frame: subscribe to whole game minutes so the HUD
+  // re-renders about once a second instead of 60 times.
+  const dayMinute = useGame(s => Math.floor(s.dayTime * 60));
+  const dayTime = dayMinute / 60;
   const {
-    health, money, karma, wantedLevel, dayTime, phase,
+    health, money, karma, wantedLevel, phase,
     currentObjective, inVehicle, nearbyNpcId, nearbyVehicleId,
     nearbyBusinessId, nearbyMissionId, activeWeapon, killCount,
     ownedBusinesses, passiveIncomePerSec, tickPassiveIncome,
     vehicleSpeed, activeVehicleId,
-  } = useGame();
+  } = useGame(useShallow(s => ({
+    health: s.health, money: s.money, karma: s.karma, wantedLevel: s.wantedLevel, phase: s.phase,
+    currentObjective: s.currentObjective, inVehicle: s.inVehicle, nearbyNpcId: s.nearbyNpcId,
+    nearbyVehicleId: s.nearbyVehicleId, nearbyBusinessId: s.nearbyBusinessId, nearbyMissionId: s.nearbyMissionId,
+    activeWeapon: s.activeWeapon, killCount: s.killCount, ownedBusinesses: s.ownedBusinesses,
+    passiveIncomePerSec: s.passiveIncomePerSec, tickPassiveIncome: s.tickPassiveIncome,
+    vehicleSpeed: s.vehicleSpeed, activeVehicleId: s.activeVehicleId,
+  })));
   const vehicleName = VEHICLE_CONFIGS.find(v => v.id === activeVehicleId)?.name;
 
   const tickRef = useRef<ReturnType<typeof setInterval>>(undefined);
