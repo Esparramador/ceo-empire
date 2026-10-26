@@ -34,10 +34,17 @@ export interface NpcConfig {
 
 export interface VehicleConfig {
   id: string;
+  /** GLB in public/assets/generated/vehicles (built by blender/cars.py). */
+  model: string;
   color: string;
   pos: [number, number, number];
+  /** Initial heading in radians (0 = facing +Z). */
+  heading: number;
   name: string;
+  /** Top speed in m/s. */
   speed: number;
+  /** Acceleration in m/s². */
+  accel: number;
 }
 
 export const MISSIONS: Mission[] = [
@@ -115,7 +122,7 @@ export const NPC_CONFIGS: NpcConfig[] = [
   { id: "npc_elena", name: "Elena Creativa", model: "chica_creativa", type: "friendly", pos: [15, 0, -8], defaultDialogue: "El diseño es el alma del negocio. Juntos crearemos algo extraordinario.", health: 100 },
   { id: "npc_cit1", name: "Carlos", model: "chico_casual", type: "neutral", pos: [30, 0, 20], defaultDialogue: "Oye CEO, ¿me contratas? ¡Tengo mucho talento!", health: 80 },
   { id: "npc_cit2", name: "Peatón", model: "chico_casual", type: "neutral", pos: [-25, 0, 15], defaultDialogue: "Esta ciudad está cambiando mucho. ¡Menuda empresa la tuya!", health: 80 },
-  { id: "npc_cit3", name: "Vendedor", model: "chico_casual", type: "neutral", pos: [50, 0, -30], defaultDialogue: "Vendo datos de clientes premium. ¿Te interesa, CEO?", health: 80 },
+  { id: "npc_cit3", name: "Vendedor", model: "chico_casual", type: "neutral", pos: [50, 0, -27], defaultDialogue: "Vendo datos de clientes premium. ¿Te interesa, CEO?", health: 80 },
   { id: "npc_lord", name: "Lord Tuétano", model: "lord_tuetano", type: "hostile", pos: [95, 0, -80], defaultDialogue: "¡Tu empresa no vale nada! ¡Yo domino este mercado y lo aplasto todo!", health: 200, scale: 1.2 },
   { id: "npc_majin", name: "Majin CEO", model: "majin_bu", type: "hostile", pos: [80, 0, -95], defaultDialogue: "¡MAJIN CEO DESTRUYE TODOS LOS NEGOCIOS! ¡CHOCOLATE!", health: 150, scale: 1.1 },
   { id: "npc_illidan", name: "Illidan Marcados", model: "illidan", type: "hostile", pos: [110, 0, -70], defaultDialogue: "No estás preparado... para competir conmigo en el mercado.", health: 180, scale: 1.15 },
@@ -123,11 +130,11 @@ export const NPC_CONFIGS: NpcConfig[] = [
 ];
 
 export const VEHICLE_CONFIGS: VehicleConfig[] = [
-  { id: "car1", color: "#cc2222", pos: [20, 0, 10], name: "Ferrari CEO", speed: 18 },
-  { id: "car2", color: "#2244cc", pos: [-30, 0, 5], name: "Lamborghini Azul", speed: 22 },
-  { id: "car3", color: "#22aa44", pos: [40, 0, -15], name: "Tesla Verde", speed: 16 },
-  { id: "car4", color: "#ccaa00", pos: [-50, 0, 40], name: "Rolls Dorado", speed: 14 },
-  { id: "car5", color: "#eeeeee", pos: [60, 0, -50], name: "Porsche Blanco", speed: 20 },
+  { id: "car1", model: "rosso_ceo",     color: "#b3110f", pos: [22.5, 0, 6],    heading: 0,            name: "Rosso CEO",     speed: 46, accel: 13 },
+  { id: "car2", model: "toro_azul",     color: "#1846c9", pos: [-17.5, 0, 8],   heading: Math.PI,      name: "Toro Azul",     speed: 52, accel: 15 },
+  { id: "car3", model: "volt_verde",    color: "#17714a", pos: [40, 0, -17.5],  heading: Math.PI / 2,  name: "Volt Verde",    speed: 42, accel: 16 },
+  { id: "car4", model: "dorado_royale", color: "#c8a034", pos: [-57.5, 0, 40],  heading: 0,            name: "Dorado Royale", speed: 36, accel: 8 },
+  { id: "car5", model: "bianco_gt",     color: "#eef0f2", pos: [62.5, 0, -40],  heading: 0,            name: "Bianco GT",     speed: 44, accel: 12 },
 ];
 
 export const CHARACTER_MODELS: Record<string, { file: string; label: string; description: string; scale: number }> = {

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { BUSINESSES, MISSIONS } from "./gameData";
+import { canStartMission } from "./missions";
 
 export interface InventoryItem {
   id: string;
@@ -20,6 +21,8 @@ interface GameStore {
   playerPos: [number, number, number];
   playerFacing: number;
   inVehicle: boolean;
+  activeVehicleId: string | null;
+  vehicleSpeed: number;
   selectedCharacter: string;
   inventory: InventoryItem[];
   activeMissionId: string | null;
@@ -53,11 +56,15 @@ interface GameStore {
   setPlayerPos(pos: [number, number, number]): void;
   setPlayerFacing(f: number): void;
   setInVehicle(v: boolean): void;
+  enterVehicle(id: string): void;
+  exitVehicle(): void;
+  setVehicleSpeed(kmh: number): void;
   setSelectedCharacter(c: string): void;
   addItem(item: InventoryItem): void;
   removeItem(id: string): void;
   startMission(id: string): void;
-  completeMission(success: boolean): void;
+  /** Ends the active mission once: pays the reward on success and shows `message`. */
+  completeMission(success: boolean, message?: string): void;
   setCurrentObjective(obj: string | null): void;
   setMissionTimer(t: number): void;
   buyBusiness(id: string): void;
@@ -74,57 +81,59 @@ interface GameStore {
   tickPassiveIncome(): void;
 }
 
+/** The data half of the store (everything that is not an action). */
+type GameState = { [K in keyof GameStore as GameStore[K] extends (...args: never[]) => unknown ? never : K]: GameStore[K] };
+
+const START_OBJECTIVE = "Ve al marcador azul y recoge el maletín de datos";
+
+/** Fresh game state; used at load and by reset() so both always agree. */
+function initialState(): GameState {
+  return {
+    phase: "menu",
+    health: 100,
+    money: 5000,
+    karma: 0,
+    wantedLevel: 0,
+    dayTime: 10,
+    playerPos: [0, 0, 26],
+    playerFacing: 0,
+    inVehicle: false,
+    activeVehicleId: null,
+    vehicleSpeed: 0,
+    selectedCharacter: "alec_monopoly",
+    inventory: [
+      { id: "phone", name: "Teléfono Ejecutivo", type: "quest", quantity: 1, icon: "📱", description: "Tu arma de negocios más poderosa" },
+      { id: "briefcase", name: "Maletín de Negocios", type: "quest", quantity: 1, icon: "💼", description: "Contiene los datos del inversor" },
+      { id: "medkit", name: "Kit Médico CEO", type: "health", quantity: 3, icon: "💊", description: "Recupera 50 puntos de salud" },
+    ],
+    activeMissionId: "mission_1",
+    completedMissions: [],
+    currentObjective: START_OBJECTIVE,
+    missionTimer: 0,
+    ownedBusinesses: [],
+    passiveIncomePerSec: 0,
+    lastIncomeTime: Date.now(),
+    dialogOpen: false,
+    dialogNpcName: "",
+    dialogText: "",
+    dialogLoading: false,
+    showInventory: false,
+    killCount: 0,
+    nearbyNpcId: null,
+    nearbyVehicleId: null,
+    nearbyBusinessId: null,
+    nearbyMissionId: null,
+    activeWeapon: "fists",
+  };
+}
+
 export const useGame = create<GameStore>((set, get) => ({
-  phase: "menu",
-  health: 100,
-  money: 5000,
-  karma: 0,
-  wantedLevel: 0,
-  dayTime: 10,
-  playerPos: [0, 0, 30],
-  playerFacing: 0,
-  inVehicle: false,
-  selectedCharacter: "alec_monopoly",
-  inventory: [
-    { id: "phone", name: "Teléfono Ejecutivo", type: "quest", quantity: 1, icon: "📱", description: "Tu arma de negocios más poderosa" },
-    { id: "briefcase", name: "Maletín de Negocios", type: "quest", quantity: 1, icon: "💼", description: "Contiene los datos del inversor" },
-    { id: "medkit", name: "Kit Médico CEO", type: "health", quantity: 3, icon: "💊", description: "Recupera 50 puntos de salud" },
-  ],
-  activeMissionId: "mission_1",
-  completedMissions: [],
-  currentObjective: "Ve al marcador azul y recoge el maletín de datos",
-  missionTimer: 0,
-  ownedBusinesses: [],
-  passiveIncomePerSec: 0,
-  lastIncomeTime: Date.now(),
-  dialogOpen: false,
-  dialogNpcName: "",
-  dialogText: "",
-  dialogLoading: false,
-  showInventory: false,
-  killCount: 0,
-  nearbyNpcId: null,
-  nearbyVehicleId: null,
-  nearbyBusinessId: null,
-  nearbyMissionId: null,
-  activeWeapon: "fists",
+  ...initialState(),
 
   setPhase: (p) => set({ phase: p }),
 
-  reset: () => set({
-    phase: "menu",
-    health: 100, money: 5000, karma: 0, wantedLevel: 0,
-    dayTime: 10, playerPos: [0, 0, 30], playerFacing: 0,
-    inVehicle: false, activeMissionId: "mission_1",
-    completedMissions: [], currentObjective: "Ve al marcador azul y recoge el maletín de datos",
-    missionTimer: 0, ownedBusinesses: [], passiveIncomePerSec: 0,
-    killCount: 0, dialogOpen: false, showInventory: false,
-    inventory: [
-      { id: "phone", name: "Teléfono Ejecutivo", type: "quest", quantity: 1, icon: "📱" },
-      { id: "briefcase", name: "Maletín de Negocios", type: "quest", quantity: 1, icon: "💼" },
-      { id: "medkit", name: "Kit Médico CEO", type: "health", quantity: 3, icon: "💊" },
-    ],
-  }),
+  // Keep the chosen character so "try again" replays with it.
+  reset: () => set(s => ({ ...initialState(), selectedCharacter: s.selectedCharacter })),
 
   takeDamage: (d) =>
     set((s) => {
@@ -146,7 +155,15 @@ export const useGame = create<GameStore>((set, get) => ({
 
   setPlayerPos: (pos) => set({ playerPos: pos }),
   setPlayerFacing: (f) => set({ playerFacing: f }),
-  setInVehicle: (v) => set({ inVehicle: v }),
+  setInVehicle: (v) => set(v ? { inVehicle: true } : { inVehicle: false, activeVehicleId: null, vehicleSpeed: 0 }),
+  // On-foot proximity is not tracked while driving: clear it so no stale prompt
+  // ("F Hablar", "B Comprar") stays on screen or acts from inside the car.
+  enterVehicle: (id) => set({
+    inVehicle: true, activeVehicleId: id,
+    nearbyVehicleId: null, nearbyNpcId: null, nearbyBusinessId: null, nearbyMissionId: null,
+  }),
+  exitVehicle: () => set({ inVehicle: false, activeVehicleId: null, vehicleSpeed: 0 }),
+  setVehicleSpeed: (kmh) => set({ vehicleSpeed: kmh }),
   setSelectedCharacter: (c) => set({ selectedCharacter: c }),
 
   addItem: (item) =>
@@ -167,6 +184,8 @@ export const useGame = create<GameStore>((set, get) => ({
     })),
 
   startMission: (id) => {
+    const { completedMissions, activeMissionId } = get();
+    if (!canStartMission(id, completedMissions, activeMissionId)) return;
     const m = MISSIONS.find(m => m.id === id);
     set({
       activeMissionId: id,
@@ -175,15 +194,19 @@ export const useGame = create<GameStore>((set, get) => ({
     });
   },
 
-  completeMission: (success) =>
+  completeMission: (success, message) =>
     set((s) => {
-      const completed = s.activeMissionId
-        ? [...s.completedMissions, s.activeMissionId]
-        : s.completedMissions;
+      const mission = MISSIONS.find(m => m.id === s.activeMissionId);
+      if (!mission || s.completedMissions.includes(mission.id)) return {};
+      if (!success) {
+        return { activeMissionId: null, missionTimer: 0, currentObjective: message ?? "❌ Misión fallida." };
+      }
       return {
-        completedMissions: completed,
+        completedMissions: [...s.completedMissions, mission.id],
         activeMissionId: null,
-        currentObjective: success ? "✅ Misión completada. Busca la siguiente." : "❌ Misión fallida.",
+        money: s.money + mission.rewardMoney,
+        karma: Math.max(-100, Math.min(100, s.karma + mission.rewardKarma)),
+        currentObjective: message ?? "✅ Misión completada. Busca la siguiente.",
         missionTimer: 0,
       };
     }),
@@ -194,16 +217,14 @@ export const useGame = create<GameStore>((set, get) => ({
   buyBusiness: (id) => {
     const biz = BUSINESSES.find(b => b.id === id);
     if (!biz) return;
-    const { money } = get();
-    if (money < biz.price) return;
+    const { money, ownedBusinesses } = get();
+    if (money < biz.price || ownedBusinesses.includes(id)) return;
     set((s) => ({
+      // the first business starts the income clock now, not at page load
+      lastIncomeTime: s.ownedBusinesses.length === 0 ? Date.now() : s.lastIncomeTime,
       money: s.money - biz.price,
-      ownedBusinesses: s.ownedBusinesses.includes(id)
-        ? s.ownedBusinesses
-        : [...s.ownedBusinesses, id],
-      passiveIncomePerSec: s.ownedBusinesses.includes(id)
-        ? s.passiveIncomePerSec
-        : s.passiveIncomePerSec + biz.incomePerSec,
+      ownedBusinesses: [...s.ownedBusinesses, id],
+      passiveIncomePerSec: s.passiveIncomePerSec + biz.incomePerSec,
     }));
   },
 

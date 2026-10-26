@@ -1,4 +1,6 @@
 import { useEffect, useRef } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { VEHICLE_CONFIGS } from "../lib/gameData";
 import { useGame } from "../lib/gameStore";
 
 function HealthBar({ value, max = 100 }: { value: number; max?: number }) {
@@ -56,14 +58,27 @@ function DayNightClock({ dayTime }: { dayTime: number }) {
 }
 
 export function HUD() {
+  // dayTime advances every frame: subscribe to whole game minutes so the HUD
+  // re-renders about once a second instead of 60 times.
+  const dayMinute = useGame(s => Math.floor(s.dayTime * 60));
+  const dayTime = dayMinute / 60;
   const {
-    health, money, karma, wantedLevel, dayTime, phase,
+    health, money, karma, wantedLevel, phase,
     currentObjective, inVehicle, nearbyNpcId, nearbyVehicleId,
     nearbyBusinessId, nearbyMissionId, activeWeapon, killCount,
     ownedBusinesses, passiveIncomePerSec, tickPassiveIncome,
-  } = useGame();
+    vehicleSpeed, activeVehicleId,
+  } = useGame(useShallow(s => ({
+    health: s.health, money: s.money, karma: s.karma, wantedLevel: s.wantedLevel, phase: s.phase,
+    currentObjective: s.currentObjective, inVehicle: s.inVehicle, nearbyNpcId: s.nearbyNpcId,
+    nearbyVehicleId: s.nearbyVehicleId, nearbyBusinessId: s.nearbyBusinessId, nearbyMissionId: s.nearbyMissionId,
+    activeWeapon: s.activeWeapon, killCount: s.killCount, ownedBusinesses: s.ownedBusinesses,
+    passiveIncomePerSec: s.passiveIncomePerSec, tickPassiveIncome: s.tickPassiveIncome,
+    vehicleSpeed: s.vehicleSpeed, activeVehicleId: s.activeVehicleId,
+  })));
+  const vehicleName = VEHICLE_CONFIGS.find(v => v.id === activeVehicleId)?.name;
 
-  const tickRef = useRef<ReturnType<typeof setInterval>>();
+  const tickRef = useRef<ReturnType<typeof setInterval>>(undefined);
   useEffect(() => {
     tickRef.current = setInterval(() => tickPassiveIncome(), 1000);
     return () => clearInterval(tickRef.current);
@@ -110,7 +125,7 @@ export function HUD() {
       }}>
         <WantedStars level={wantedLevel} />
         <DayNightClock dayTime={dayTime} />
-        {inVehicle && <div style={{ fontSize: 11, color: "#fbbf24", marginTop: 4 }}>🚗 En vehículo</div>}
+        {inVehicle && <div style={{ fontSize: 11, color: "#fbbf24", marginTop: 4 }}>🚗 {vehicleName ?? "En vehículo"}</div>}
         {activeWeapon !== "fists" && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>🔫 {activeWeapon}</div>}
       </div>
 
@@ -127,9 +142,22 @@ export function HUD() {
         </div>
       )}
 
+      {/* BOTTOM LEFT: Speedometer */}
+      {inVehicle && (
+        <div style={{
+          position: "fixed", bottom: 20, left: 20, zIndex: 10,
+          background: "rgba(0,0,0,0.55)", border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: 12, padding: "8px 16px", backdropFilter: "blur(6px)", textAlign: "center",
+        }}>
+          <div style={{ fontSize: 34, fontWeight: 900, color: "#fff", fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{vehicleSpeed}</div>
+          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", letterSpacing: 2 }}>KM/H</div>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", marginTop: 4 }}>W/S acelerar · A/D girar · Espacio freno · E salir</div>
+        </div>
+      )}
+
       {/* BOTTOM: Context hints */}
       <div style={{ position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", zIndex: 10, display: "flex", gap: 8 }}>
-        {nearbyVehicleId && (
+        {nearbyVehicleId && !inVehicle && (
           <div className="prompt-hint">🚗 <kbd style={{ background: "rgba(255,255,255,0.15)", borderRadius: 4, padding: "1px 5px", fontSize: 10 }}>E</kbd> Entrar vehículo</div>
         )}
         {nearbyNpcId && (
