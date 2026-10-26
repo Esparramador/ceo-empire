@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CITY, groundHeight, insideObstacle, lineOfSight, nightFactor, resolveCollision, WORLD_LIMIT } from "./city";
+import { CITY, cameraRayHit, groundHeight, insideObstacle, lineOfSight, nightFactor, resolveCollision, WORLD_LIMIT } from "./city";
 import { BUSINESSES, DATA_CHIPS, MISSIONS, NPC_CONFIGS, PICKUPS, PLACES, VEHICLE_CONFIGS, CHASE_ROUTE } from "./gameData";
 
 /** Reachable on foot: not inside a building, a story structure or the fountain, and inside the world. */
@@ -92,6 +92,26 @@ describe("collisions and line of sight", () => {
     expect(groundHeight(CITY.roads.centers[0], 0)).toBe(0);
     const blk = CITY.blocks[0];
     expect(groundHeight((blk.x0 + blk.x1) / 2, (blk.z0 + blk.z1) / 2)).toBe(CITY.curbHeight);
+  });
+});
+
+describe("camera", () => {
+  it("is stopped by a building between the player and the camera", () => {
+    const b = CITY.buildings[0];
+    const t = cameraRayHit(b.x - b.w, 1.7, b.z, b.x + b.w, 3, b.z);
+    expect(t).toBeGreaterThan(0);
+    expect(t).toBeLessThan(0.5);
+  });
+
+  it("passes over low structures (the club's stage and bar) and above rooftops", () => {
+    const { stage } = PLACES.club;
+    expect(cameraRayHit(stage[0], 1.7, stage[2] - 5, stage[0], 3, stage[2] + 4)).toBe(1);
+    const b = CITY.buildings[0];
+    expect(cameraRayHit(b.x - b.w, b.h + 5, b.z, b.x + b.w, b.h + 5, b.z)).toBe(1);
+  });
+
+  it("is clear in an open street", () => {
+    expect(cameraRayHit(0, 1.7, 20, 0, 3.2, 26)).toBe(1);
   });
 });
 

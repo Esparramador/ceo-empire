@@ -54,9 +54,9 @@ function PointerLockHint() {
   return (
     <div ref={ref} className="lock-hint" style={{ display: "none" }}>
       <div className="lock-box">
-        <div style={{ fontSize: 28 }}>🖱️</div>
-        <div style={{ fontWeight: 700, marginTop: 6 }}>Haz clic en el juego para capturar el ratón</div>
-        <div style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>Esc para pausar · H para ver los controles</div>
+        <span>🖱️</span>
+        <b>Haz clic en el juego para mover la cámara con el ratón</b>
+        <span style={{ opacity: 0.6 }}>· rueda: zoom · Esc pausa · H controles</span>
       </div>
     </div>
   );

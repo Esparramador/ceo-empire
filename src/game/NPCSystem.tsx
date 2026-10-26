@@ -43,7 +43,10 @@ function NpcView({ cfg, npc, anim }: { cfg: NpcConfig; npc: NpcRuntime; anim: An
     group.current.position.copy(npc.pos);
     group.current.rotation.y = npc.facing;
     const d = camera.position.distanceTo(npc.pos);
-    const showUi = d < 40 && npc.state !== "dead";
+    // someone standing right where the camera passes would fill the screen
+    group.current.visible = Math.hypot(camera.position.x - npc.pos.x, camera.position.z - npc.pos.z) > 1.4;
+    // too close to the camera, a name tag or health bar fills the screen
+    const showUi = d < 40 && d > 4 && npc.state !== "dead";
     if (label.current) label.current.visible = showUi && d < 26;
     if (bar.current && barBg.current) {
       const show = showUi && isEnemy && npc.hp < npc.maxHp;
@@ -53,7 +56,7 @@ function NpcView({ cfg, npc, anim }: { cfg: NpcConfig; npc: NpcRuntime; anim: An
       bar.current.position.x = -(1 - r) * 1.1;
     }
     if (marker.current) {
-      marker.current.visible = (!!giverOf || sideGiver) && npc.state !== "dead";
+      marker.current.visible = (!!giverOf || sideGiver) && npc.state !== "dead" && d > 3;
       marker.current.position.y = barY + 1.4 + Math.sin(clock.elapsedTime * 3) * 0.2;
       marker.current.rotation.y = clock.elapsedTime * 2;
     }

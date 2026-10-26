@@ -10,8 +10,8 @@
 export type Vec3 = [number, number, number];
 
 // ── Lugares de la historia ───────────────────────────────────────────────────
-/** Caja de colisión en planta: centro y medio ancho/fondo. */
-export interface Footprint { x: number; z: number; hw: number; hd: number }
+/** Caja de colisión: centro y medio ancho/fondo en planta, y altura (para la cámara). */
+export interface Footprint { x: number; z: number; hw: number; hd: number; h: number }
 
 export const PLACES = {
   /** La torre de cristal al norte de la plaza es la sede de Shopy Crafter. */
@@ -35,18 +35,18 @@ export const PLACES = {
   iceTower: { x: 0, z: -91.6, h: 46.8, arena: [0, 0, -115] as Vec3, name: "Torre de Hielo", color: "#5ac8ff" },
 };
 
-const lot = (x: number, z: number, w: number, d: number): Footprint => ({ x, z, hw: w / 2, hd: d / 2 });
+const lot = (x: number, z: number, w: number, d: number, h: number): Footprint => ({ x, z, hw: w / 2, hd: d / 2, h });
 
 /** Construcciones de la historia que no están en la ciudad de Blender: también chocan. */
 export const PLACE_OBSTACLES: Footprint[] = [
-  lot(PLACES.kiosk.x, PLACES.kiosk.z, PLACES.kiosk.w, PLACES.kiosk.d),
-  lot(PLACES.club.facade.x, PLACES.club.facade.z, PLACES.club.facade.w, PLACES.club.facade.d),
-  lot(PLACES.club.bar[0], PLACES.club.bar[2], 5, 2),
-  lot(PLACES.club.dj[0], PLACES.club.dj[2], 4, 2),
-  lot(PLACES.club.stage[0], PLACES.club.stage[2], 7, 7),
-  lot(PLACES.crimsonFort.x, PLACES.crimsonFort.z, PLACES.crimsonFort.w, PLACES.crimsonFort.d),
-  lot(PLACES.shadowBastion.x, PLACES.shadowBastion.z, PLACES.shadowBastion.w, PLACES.shadowBastion.d),
-  lot(PLACES.helipad.x, PLACES.helipad.z - 2, 3.4, 7),   // helicóptero
+  lot(PLACES.kiosk.x, PLACES.kiosk.z, PLACES.kiosk.w, PLACES.kiosk.d, 3.8),
+  lot(PLACES.club.facade.x, PLACES.club.facade.z, PLACES.club.facade.w, PLACES.club.facade.d, PLACES.club.facade.h + 0.2),
+  lot(PLACES.club.bar[0], PLACES.club.bar[2], 5, 2, 1.4),
+  lot(PLACES.club.dj[0], PLACES.club.dj[2], 4, 2, 2.9),
+  lot(PLACES.club.stage[0], PLACES.club.stage[2], 7, 7, 0.8),
+  lot(PLACES.crimsonFort.x, PLACES.crimsonFort.z, PLACES.crimsonFort.w, PLACES.crimsonFort.d, PLACES.crimsonFort.h + 2.6),
+  lot(PLACES.shadowBastion.x, PLACES.shadowBastion.z, PLACES.shadowBastion.w, PLACES.shadowBastion.d, PLACES.shadowBastion.h + 2.6),
+  lot(PLACES.helipad.x, PLACES.helipad.z - 2, 3.4, 7, 3.6),   // helicóptero
 ];
 
 // ── Armas ────────────────────────────────────────────────────────────────────

@@ -80,7 +80,7 @@ export const input = {
   mouseDY: 0,
 };
 
-export const camera = { yaw: Math.PI, pitch: 0.28, dist: 9, shake: 0 };
+export const camera = { yaw: Math.PI, pitch: 0.22, dist: 6, shake: 0 };
 
 export const runtime = {
   player: {
@@ -127,7 +127,7 @@ export function resetRuntime(playerPos: Vec3, opts?: { defeatedBosses?: string[]
   p.facing = Math.PI; p.onGround = true; p.moving = 0; p.sprinting = false;
   p.attackAnim = 0; p.attackCd = 0; p.lastDamageAt = -100; p.hitFlash = 0;
   p.inVehicleId = null; p.distanceTravelled = 0;
-  camera.yaw = Math.PI; camera.pitch = 0.28; camera.dist = 9; camera.shake = 0;
+  camera.yaw = Math.PI; camera.pitch = 0.22; camera.dist = 6; camera.shake = 0;
 
   runtime.npcs = {};
   for (const cfg of NPC_CONFIGS) {

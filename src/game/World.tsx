@@ -69,6 +69,15 @@ function City() {
 }
 
 /** Render every instance of a prop GLB with one InstancedMesh per sub-mesh. */
+/** Canopy size of the props that can stand between the camera and the player. */
+const CAMERA_OCCLUDERS: Record<string, { radius: number; near: number; top: number }> = {
+  // radius: canopy/pole half-width on the camera→player line; near: hide it when the camera is this close
+  tree: { radius: 2.8, near: 4.3, top: 6.6 },
+  cypress: { radius: 1.2, near: 2.2, top: 6.5 },
+  streetlight: { radius: 0.6, near: 2.8, top: 8 },
+  traffic_light: { radius: 0.5, near: 2.4, top: 6 },
+};
+
 function InstancedProp({ id, items, shadows = true }: { id: string; items: PropInstance[]; shadows?: boolean }) {
   const { scene } = useGLTF(propModel(id));
   const night = useNightMaterials(scene);
@@ -84,23 +93,58 @@ function InstancedProp({ id, items, shadows = true }: { id: string; items: PropI
     const up = new THREE.Vector3(0, 1, 0);
     return parts.map(({ geo, mat, local }) => {
       const inst = new THREE.InstancedMesh(geo, mat, items.length);
+      const bases: THREE.Matrix4[] = [];
       items.forEach(([x, z, rot], i) => {
         q.setFromAxisAngle(up, rot);
         tmp.compose(new THREE.Vector3(x, groundHeight(x, z), z), q, new THREE.Vector3(1, 1, 1)).multiply(local);
         inst.setMatrixAt(i, tmp);
+        bases.push(tmp.clone());
       });
       inst.instanceMatrix.needsUpdate = true;
       inst.castShadow = shadows;
       inst.receiveShadow = true;
       inst.computeBoundingSphere();
+      inst.userData.bases = bases;
       return inst;
     });
   }, [scene, items, shadows]);
 
-  useFrame(() => {
-    if (!night.length) return;
-    const n = runtime.night;
-    for (const e of night) e.mat.emissiveIntensity = e.day + (e.night - e.day) * n;
+  // Trees standing between the camera and the player (or swallowing the
+  // camera) are hidden until the view is clear again.
+  const occluder = CAMERA_OCCLUDERS[id];
+  const hidden = useRef<boolean[]>([]);
+  const occTimer = useRef(0);
+  const zero = useMemo(() => new THREE.Matrix4().makeScale(0, 0, 0), []);
+
+  useFrame(({ camera }, delta) => {
+    if (night.length) {
+      const n = runtime.night;
+      for (const e of night) e.mat.emissiveIntensity = e.day + (e.night - e.day) * n;
+    }
+    if (!occluder) return;
+    occTimer.current -= delta;
+    if (occTimer.current > 0) return;
+    occTimer.current = 0.08;
+    const c = camera.position, p = runtime.player.pos;
+    const sx = p.x - c.x, sz = p.z - c.z;
+    const len2 = sx * sx + sz * sz || 1;
+    const above = c.y > occluder.top + 1;
+    let changed = false;
+    items.forEach(([x, z], i) => {
+      let hide = false;
+      if (!above) {
+        const t = Math.max(0, Math.min(1, ((x - c.x) * sx + (z - c.z) * sz) / len2));
+        const dx = c.x + sx * t - x, dz = c.z + sz * t - z;
+        const near = (x - c.x) ** 2 + (z - c.z) ** 2 < occluder.near ** 2; // canopy or pole right by the camera
+        hide = near || (t < 0.97 && dx * dx + dz * dz < (occluder.radius + 0.4) ** 2);
+      }
+      if (hide !== !!hidden.current[i]) {
+        hidden.current[i] = hide;
+        changed = true;
+        for (const m of meshes) m.setMatrixAt(i, hide ? zero : (m.userData.bases as THREE.Matrix4[])[i]);
+      }
+    });
+    if (changed) for (const m of meshes) m.instanceMatrix.needsUpdate = true;
   });
 
   return <>{meshes.map((m, i) => <primitive key={i} object={m} />)}</>;

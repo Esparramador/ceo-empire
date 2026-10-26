@@ -105,3 +105,37 @@ export function lineOfSight(ax: number, az: number, bx: number, bz: number): boo
   }
   return true;
 }
+
+/** Solid boxes the camera must not see through: city buildings (with parapet and canopy) and story structures. */
+const CAMERA_BOXES = [
+  ...CITY.buildings.map(b => ({ x: b.x, z: b.z, hw: b.w / 2 + 0.3, hd: b.d / 2 + 0.3, h: b.h + 1 })),
+  ...PLACE_OBSTACLES,
+];
+
+/**
+ * First hit of the segment a→b against the solid boxes, as a fraction of its
+ * length (1 = clear). 3D slab test, so a camera above a low structure (the
+ * kiosk, the club's stage) is not pulled in by it.
+ */
+export function cameraRayHit(
+  ax: number, ay: number, az: number, bx: number, by: number, bz: number,
+): number {
+  const dx = bx - ax, dy = by - ay, dz = bz - az;
+  let best = 1;
+  for (const o of CAMERA_BOXES) {
+    let t0 = 0, t1 = best;
+    const slabs: [number, number, number, number][] = [
+      [ax, dx, o.x - o.hw, o.x + o.hw], [ay, dy, -1, o.h], [az, dz, o.z - o.hd, o.z + o.hd],
+    ];
+    let miss = false;
+    for (const [p, d, lo, hi] of slabs) {
+      if (Math.abs(d) < 1e-9) { if (p < lo || p > hi) { miss = true; break; } continue; }
+      let ta = (lo - p) / d, tb = (hi - p) / d;
+      if (ta > tb) [ta, tb] = [tb, ta];
+      t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
+      if (t0 > t1) { miss = true; break; }
+    }
+    if (!miss && t0 < best) best = t0;
+  }
+  return best;
+}

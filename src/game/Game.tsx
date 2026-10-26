@@ -51,7 +51,7 @@ export function Game() {
             powerPreference: "high-performance",
           }}
           dpr={[1, 1.75]}
-          camera={{ fov: 62, near: 0.1, far: 600, position: [0, 5, 40] }}
+          camera={{ fov: 65, near: 0.1, far: 600, position: [0, 5, 40] }}
           style={{ background: "#000" }}
           // owner models with a pedestal are clipped by a plane (MODEL_CONFIG.clipBottom)
           onCreated={({ gl }) => { gl.localClippingEnabled = true; }}

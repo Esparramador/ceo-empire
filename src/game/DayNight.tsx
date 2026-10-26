@@ -48,16 +48,17 @@ export function DayNightSystem() {
         sun.current.intensity = 0.4 + Math.min(1, elev * 3) * 2.6;
         sun.current.color.copy(SUN_LOW).lerp(SUN_DAY, Math.min(1, elev * 2.5));
       } else {
-        sun.current.intensity = 0.35 * n;
+        sun.current.intensity = 0.55 * n;
         sun.current.color.copy(MOON);
       }
     }
-    if (hemi.current) hemi.current.intensity = 0.15 + (1 - n) * 0.7;
+    // night floor keeps streets readable where no street lamp reaches
+    if (hemi.current) hemi.current.intensity = 0.32 + (1 - n) * 0.53;
     if (sky.current?.material) {
       sky.current.material.uniforms.sunPosition.value.copy(sunDir.current).multiplyScalar(1000);
     }
     if (stars.current) (stars.current.material as THREE.PointsMaterial).opacity = n;
-    scene.environmentIntensity = 0.15 + (1 - n) * 0.85;
+    scene.environmentIntensity = 0.25 + (1 - n) * 0.75;
 
     if (scene.fog) {
       const dusk = Math.max(0, 1 - Math.abs(elev) * 5);

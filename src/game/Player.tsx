@@ -9,8 +9,8 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { BUSINESSES, WEAPONS, VEHICLE_CONFIGS, characterByKey } from "../lib/gameData";
 import { useGame, isUiBlocking } from "../lib/gameStore";
-import { runtime, input, camera as camState, resolveCircle, insideObstacle, lineOfSight, dist2D, lerpAngle } from "../lib/world";
-import { groundHeight } from "../lib/city";
+import { runtime, input, camera as camState, resolveCircle, lineOfSight, dist2D, lerpAngle } from "../lib/world";
+import { cameraRayHit, groundHeight } from "../lib/city";
 import { sfx, engine, unlockAudio } from "../lib/audio";
 import { Character, makeAnim } from "./Characters";
 import { talkTo } from "./interactions";
@@ -21,6 +21,8 @@ const SPRINT_MUL = 1.8;
 const GRAVITY = 24;
 const JUMP_V = 8;
 const RADIUS = 0.5;
+const BASE_FOV = 65;
+const CAR_CAM_DIST = 7;
 
 export function Player() {
   const selectedCharacter = useGame(s => s.selectedCharacter);
@@ -34,6 +36,7 @@ export function Player() {
   const playAcc = useRef(0);
   const lastMouseMove = useRef(-10);
   const tmp = useMemo(() => ({ dir: new THREE.Vector3(), camPos: new THREE.Vector3(), target: new THREE.Vector3() }), []);
+  const cam = useMemo(() => ({ pivot: new THREE.Vector3(1e6, 0, 0), look: new THREE.Vector3(), boom: 6 }), []);
 
   // ── Input ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -124,7 +127,7 @@ export function Player() {
     const onMouseUp = (e: MouseEvent) => { if (e.button === 0) input.attackHeld = false; };
     const onLockChange = () => { input.pointerLocked = document.pointerLockElement === canvas; if (!input.pointerLocked) { input.keys.clear(); input.attackHeld = false; } };
     const onBlur = () => { input.keys.clear(); input.attackHeld = false; };
-    const onWheel = (e: WheelEvent) => { camState.dist = Math.max(4, Math.min(16, camState.dist + Math.sign(e.deltaY) * 1)); };
+    const onWheel = (e: WheelEvent) => { camState.dist = Math.max(3, Math.min(14, camState.dist + Math.sign(e.deltaY) * 1)); };
 
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
@@ -165,7 +168,8 @@ export function Player() {
     // Cámara (ratón)
     if (input.pointerLocked && !isUiBlocking(s)) {
       camState.yaw -= input.mouseDX * 0.0022;
-      camState.pitch = Math.max(-0.35, Math.min(1.1, camState.pitch + input.mouseDY * 0.0018));
+      // below -0.1 the camera digs into the pavement; above 0.95 it is a map view
+      camState.pitch = Math.max(-0.1, Math.min(0.95, camState.pitch + input.mouseDY * 0.0018));
       if (Math.abs(input.mouseDX) > 0.5) lastMouseMove.current = runtime.clock;
     }
     input.mouseDX = 0; input.mouseDY = 0;
@@ -338,25 +342,46 @@ export function Player() {
     }
 
     // ── Cámara en tercera persona ───────────────────────────────────────────
+    // The followed point (pivot) is smoothed, not the camera: smoothing the
+    // camera itself made it trail ~5 m behind a car at speed.
     const inCar = !!p.inVehicleId;
-    const dist = inCar ? camState.dist + 5 : camState.dist;
-    const pitch = inCar ? Math.max(camState.pitch, 0.2) : camState.pitch;
-    const target = tmp.target.set(p.pos.x, p.pos.y + (inCar ? 1.6 : 1.7), p.pos.z);
-    const off = new THREE.Vector3(Math.sin(camState.yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(camState.yaw) * Math.cos(pitch)).multiplyScalar(dist);
-    const desired = tmp.camPos.copy(target).add(off);
-    // Colisión de cámara con edificios: acerca la cámara hasta que quede libre
-    for (let i = 0; i < 12; i++) {
-      if (!insideObstacle(desired.x, desired.z, 0.6)) break;
-      desired.lerp(target, 0.15);
-    }
-    if (desired.y < 0.8) desired.y = 0.8;
-    camera.position.lerp(desired, Math.min(1, dt * (inCar ? 6 : 10)));
+    const car = inCar ? runtime.vehicles[p.inVehicleId!] : null;
+    const carCfg = inCar ? VEHICLE_CONFIGS.find(c => c.id === p.inVehicleId) : null;
+    const speedK = car && carCfg ? Math.min(1, Math.abs(car.speed) / carCfg.speed) : 0;
+    const pivot = tmp.target.set(p.pos.x, p.pos.y + (inCar ? 1.3 : 1.55), p.pos.z);
+    if (cam.pivot.distanceToSquared(pivot) > 400) cam.pivot.copy(pivot); // teleport / respawn: no swoop
+    cam.pivot.lerp(pivot, 1 - Math.exp(-dt * (inCar ? 14 : 22)));
+
+    const pitch = inCar ? Math.max(camState.pitch, 0.16) : camState.pitch;
+    const boomLen = inCar ? CAR_CAM_DIST + speedK * 3 : camState.dist;
+    const dir = tmp.camPos.set(Math.sin(camState.yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(camState.yaw) * Math.cos(pitch));
+    // Something solid between the player and the camera: pull in at once, ease back out
+    const t = cameraRayHit(cam.pivot.x, cam.pivot.y, cam.pivot.z,
+      cam.pivot.x + dir.x * boomLen, cam.pivot.y + dir.y * boomLen, cam.pivot.z + dir.z * boomLen);
+    const allowed = t < 1 ? Math.max(0.9, t * boomLen - 0.35) : boomLen;
+    cam.boom = allowed < cam.boom ? allowed : cam.boom + (allowed - cam.boom) * Math.min(1, dt * 3);
+
+    camera.position.copy(cam.pivot).addScaledVector(dir, cam.boom);
+    // Wall right behind the player: crane up and look over the shoulder
+    // instead of staring at the back of their head
+    if (!inCar && cam.boom < 3.2) camera.position.y += (3.2 - cam.boom) * 1.2;
+    const floor = groundHeight(camera.position.x, camera.position.z) + 0.4;
+    if (camera.position.y < floor) camera.position.y = floor;
     if (camState.shake > 0) {
       camState.shake = Math.max(0, camState.shake - dt * 1.5);
       camera.position.x += (Math.random() - 0.5) * camState.shake * 0.6;
       camera.position.y += (Math.random() - 0.5) * camState.shake * 0.6;
     }
-    camera.lookAt(target);
+    // Look a little above the player (on foot) or ahead of the car, so the
+    // character sits below the centre and the street ahead stays in view.
+    const look = cam.look.copy(cam.pivot);
+    look.y += inCar ? 0.5 : 0.45;
+    if (car) look.addScaledVector(tmp.dir.set(Math.sin(car.heading), 0, Math.cos(car.heading)), Math.min(Math.abs(car.speed) * 0.25, 6) * Math.sign(car.speed || 1));
+    camera.lookAt(look);
+    // Wider field of view at speed
+    const pc = camera as THREE.PerspectiveCamera;
+    const fov = BASE_FOV + speedK * 12;
+    if (Math.abs(pc.fov - fov) > 0.05) { pc.fov += (fov - pc.fov) * Math.min(1, dt * 3); pc.updateProjectionMatrix(); }
 
     // Malla del jugador
     if (group.current) {
