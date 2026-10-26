@@ -128,6 +128,24 @@ CARS = [
 ]
 
 
+def _variant(base_id, **over):
+    """A new car from an existing design: same body, its own paint, plate and label."""
+    base = next(c for c in CARS if c["id"] == base_id)
+    return {**base, **over}
+
+
+# Story cars (CEO Empire campaign): the city taxi, the police patrol and the
+# black saloon the mole escapes in. Roof sign and light bar are added in-game.
+CARS += [
+    _variant("volt_verde", id="taxi_crafter", label="Taxi Crafter", paint="#f2c318", two_tone="#151515",
+             rim={"style": "aero", "spokes": 5, "color": "#2b2d31"}, plate="TAXI 07"),
+    _variant("bianco_gt", id="patrulla", label="Patrulla", paint="#f4f6f8", two_tone="#1c3f8f",
+             rim={"style": "twin", "spokes": 5, "color": "#2b2d31"}, caliper="#1c3f8f", plate="POL 112"),
+    _variant("dorado_royale", id="sedan_negro", label="Sedán de Víctor", paint="#16171b", two_tone="#16171b",
+             caliper="#3a3a3a", plate="TTN 666"),
+]
+
+
 # ---------------------------------------------------------------------------
 # Materials
 # ---------------------------------------------------------------------------

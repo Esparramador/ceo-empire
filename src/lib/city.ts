@@ -1,4 +1,5 @@
 import layout from "./cityLayout.json";
+import { PLACE_OBSTACLES } from "./gameData";
 
 export interface Building { x: number; z: number; w: number; d: number; h: number; style: string }
 export interface Block { x0: number; x1: number; z0: number; z1: number; type: string }
@@ -52,6 +53,17 @@ export function resolveCollision(p: { x: number; z: number }, r: number): boolea
       else p.z += Math.sign(dz || 1) * pz;
     }
   }
+  // Story structures (club, kiosk, lairs…) are exact boxes, no canopy margin
+  for (const o of PLACE_OBSTACLES) {
+    const dx = p.x - o.x, dz = p.z - o.z;
+    const px = o.hw + r - Math.abs(dx);
+    if (px <= 0) continue;
+    const pz = o.hd + r - Math.abs(dz);
+    if (pz <= 0) continue;
+    hit = true;
+    if (px < pz) p.x += Math.sign(dx || 1) * px;
+    else p.z += Math.sign(dz || 1) * pz;
+  }
   const f = CITY.fountain;
   const fx = p.x - f.x, fz = p.z - f.z;
   const fd = Math.hypot(fx, fz), fr = f.r + r;
@@ -71,4 +83,25 @@ export function nightFactor(hour: number): number {
   if (hour >= 20 || hour <= 5) return 1;
   if (hour < 7) return (7 - hour) / 2;
   return (hour - 18) / 2;
+}
+
+/** Is (x, z) inside a building or story structure (grown by `margin`)? */
+export function insideObstacle(x: number, z: number, margin = 0): boolean {
+  for (const b of CITY.buildings) {
+    if (Math.abs(x - b.x) < b.w / 2 + margin && Math.abs(z - b.z) < b.d / 2 + margin) return true;
+  }
+  for (const o of PLACE_OBSTACLES) {
+    if (Math.abs(x - o.x) < o.hw + margin && Math.abs(z - o.z) < o.hd + margin) return true;
+  }
+  return false;
+}
+
+/** 2D line of sight between two points (shots don't go through buildings). */
+export function lineOfSight(ax: number, az: number, bx: number, bz: number): boolean {
+  const steps = Math.ceil(Math.hypot(bx - ax, bz - az) / 1.5);
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    if (insideObstacle(ax + (bx - ax) * t, az + (bz - az) * t)) return false;
+  }
+  return true;
 }

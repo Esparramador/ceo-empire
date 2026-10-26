@@ -6,16 +6,9 @@ import { DayNightSystem } from "./DayNight";
 import { World } from "./World";
 import { Player } from "./Player";
 import { NPCSystem } from "./NPCSystem";
-import { VehicleSystem, resetCars } from "./VehicleSystem";
-import { resetRuntime } from "./runtime";
+import { VehicleSystem } from "./VehicleSystem";
 import { MissionSystem } from "./MissionSystem";
-
-if (import.meta.env.DEV) {
-  // Debug handle for automated play-testing (dev server only).
-  void Promise.all([import("./runtime"), import("../lib/gameStore"), import("./VehicleSystem")]).then(([r, g, v]) => {
-    (window as any).__ceo = { runtime: r.runtime, useGame: g.useGame, carStates: v.carStates };
-  });
-}
+import { Pickups } from "./Pickups";
 
 /**
  * The models load inside the Canvas, whose Suspense fallback can only be 3D,
@@ -43,9 +36,7 @@ function SceneReady({ onReady }: { onReady: () => void }) {
 }
 
 export function Game() {
-  // Runs once per game, during render, so children start from a clean world
-  // (an effect would run after the NPCs registered themselves).
-  useState(() => { resetRuntime(); resetCars(); });
+  // The world state is reset by the store (newGame / continueGame / respawn).
   const [ready, setReady] = useState(false);
   const onReady = useCallback(() => setReady(true), []);
   return (
@@ -57,14 +48,18 @@ export function Game() {
             antialias: true,
             toneMapping: THREE.ACESFilmicToneMapping,
             toneMappingExposure: 1.1,
+            powerPreference: "high-performance",
           }}
           dpr={[1, 1.75]}
           camera={{ fov: 62, near: 0.1, far: 600, position: [0, 5, 40] }}
           style={{ background: "#000" }}
+          // owner models with a pedestal are clipped by a plane (MODEL_CONFIG.clipBottom)
+          onCreated={({ gl }) => { gl.localClippingEnabled = true; }}
         >
           <Suspense fallback={null}>
             <DayNightSystem />
             <World />
+            <Pickups />
             <Player />
             <NPCSystem />
             <VehicleSystem />
