@@ -11,9 +11,9 @@ import math
 import lib
 
 CHARACTERS = {
-    # Playable: top hat and sunglasses, burgundy suit with a gold tie
-    "ceo_magnate": {"skin": "#e8b48a", "suit": "#5a1a2a", "shirt": "#f6f1e7", "tie": "#d4af37", "pants": "#2a0f18",
-                    "shoes": "#111111", "hair": "#8a8a8a", "hair_style": "short", "extras": ["tophat", "sunglasses"]},
+    # Playable: top hat, monocle and moustache
+    "ceo_magnate": {"skin": "#e8b996", "suit": "#15161a", "shirt": "#f4f4f4", "tie": "#c8102e", "pants": "#15161a",
+                    "shoes": "#0a0a0a", "hair": "#d9d9d9", "hair_style": "short", "extras": ["tophat", "monocle", "mustache"]},
     "chico_formal": {"skin": "#d9a37e", "suit": "#1d2b4f", "shirt": "#eef3ff", "tie": "#c9a227", "pants": "#1d2b4f",
                      "shoes": "#2b1a10", "hair": "#2a1a10", "hair_style": "short", "extras": []},
     "chica_ejecutiva": {"skin": "#f0c3a0", "suit": "#4a4d55", "shirt": "#ffffff", "tie": None, "pants": "#4a4d55",
@@ -24,13 +24,13 @@ CHARACTERS = {
                      "shoes": "#e8e8e8", "hair": "#111111", "hair_style": "short", "extras": ["hood"]},
     "lord_tuetano": {"skin": "#ece4d0", "suit": "#3b0d18", "shirt": "#1a1a1a", "tie": "#d4af37", "pants": "#1a0a0e",
                      "shoes": "#111111", "hair": None, "hair_style": "none", "extras": ["crown", "cape", "glow_red"], "bulk": 1.1},
-    # Tuétano's partners and the Ice Tower's keeper: the game's own designs
-    "baron_bombon": {"skin": "#f3cdb0", "suit": "#e84393", "shirt": "#fff5fb", "tie": "#7ee0c8", "pants": "#7a2a5a",
-                     "shoes": "#2a1a10", "hair": "#5a2a14", "hair_style": "short", "extras": ["tophat"], "bulk": 1.45},
-    "malvik": {"skin": "#b8473a", "suit": "#141414", "shirt": "#c9a227", "tie": "#c9a227", "pants": "#141414",
-               "shoes": "#0a0a0a", "hair": "#111111", "hair_style": "short", "extras": ["horns", "sunglasses"], "bulk": 1.1},
-    "conde_glaciar": {"skin": "#d8eef6", "suit": "#e9f6fb", "shirt": "#7fc6e0", "tie": None, "pants": "#4a7a96",
-                      "shoes": "#2b4a5c", "hair": None, "hair_style": "none", "extras": ["crown_ice", "cape", "glow_blue"], "bulk": 1.15},
+    # Tuétano's partners and the Ice Tower's keeper (original look kept by the owner, see the PR)
+    "baron_bombon": {"skin": "#f39ac2", "suit": "#f4f4f4", "shirt": "#3b1f6e", "tie": None, "pants": "#f4f4f4",
+                     "shoes": "#e0b000", "hair": None, "hair_style": "none", "extras": ["antenna", "belt_gold"], "bulk": 1.5},
+    "malvik": {"skin": "#6a4c93", "suit": "#2c2c2c", "shirt": "#6a4c93", "tie": None, "pants": "#3a2d1e",
+               "shoes": "#1e1e1e", "hair": "#111111", "hair_style": "long", "extras": ["horns", "blindfold", "bare_chest"], "bulk": 1.15},
+    "conde_glaciar": {"skin": "#cfd8e3", "suit": "#4b5a6e", "shirt": "#2a3442", "tie": None, "pants": "#2a3442",
+                      "shoes": "#1a2230", "hair": None, "hair_style": "none", "extras": ["helm", "pauldrons", "cape", "glow_blue"], "bulk": 1.2},
 }
 
 
@@ -48,8 +48,6 @@ def mats(spec):
     m["glow_red"] = lib.material("glow_red", "#ff2a2a", emission="#ff2a2a", emission_strength=4)
     m["glow_blue"] = lib.material("glow_blue", "#7fd8ff", emission="#7fd8ff", emission_strength=4)
     m["glow_green"] = lib.material("glow_green", "#3dff6a", emission="#3dff6a", emission_strength=3)
-    m["ice"] = lib.material("ice", "#bfefff", metallic=0.3, roughness=0.15, emission="#5ac8ff", emission_strength=1.5)
-    m["shades"] = lib.material("shades", "#0c0c10", metallic=0.6, roughness=0.1)
     return m
 
 
@@ -121,15 +119,6 @@ def build_character(key, spec, out_path):
     if "glasses" in ex:
         for s in (-1, 1):
             body.append(lib.torus("lens", 0.028, 0.005, loc=(s * 0.045, -0.112, head_z + 0.025), mat=m["black"], rot=(math.pi / 2, 0, 0), seg=16, mseg=6))
-    if "sunglasses" in ex:
-        for sx in (-1, 1):
-            body.append(lib.box("shade", (0.06, 0.012, 0.035), loc=(sx * 0.045, -0.112, head_z + 0.025), mat=m["shades"], bevel=0.008))
-        body.append(lib.box("bridge", (0.03, 0.01, 0.008), loc=(0, -0.114, head_z + 0.032), mat=m["shades"]))
-    if "crown_ice" in ex:
-        body.append(lib.cylinder("ice_crown", 0.105, 0.04, loc=(0, 0, head_z + 0.12), mat=m["ice"], verts=16))
-        for k in range(5):
-            a = 2 * math.pi * k / 5
-            body.append(lib.cylinder("ice_shard", 0.022, 0.07 + 0.05 * (k % 2), loc=(math.cos(a) * 0.09, math.sin(a) * 0.09, head_z + 0.18), mat=m["ice"], r2=0.0, verts=5))
     if "horns" in ex:
         for s in (-1, 1):
             h = lib.cylinder("horn", 0.03, 0.26, loc=(s * 0.1, 0.0, head_z + 0.15), mat=m["black"], r2=0.004, verts=10)

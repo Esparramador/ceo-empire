@@ -59,9 +59,9 @@ describe("every reference resolves", () => {
   });
 });
 
-describe("no third-party characters", () => {
+describe("no third-party or real-person names", () => {
   it("uses no names from other franchises in the game data", () => {
     const src = readFileSync(new URL("./gameData.ts", import.meta.url), "utf8");
-    expect(src).not.toMatch(/arthas|illidan|majin|bowser|goku|monopoly|ferrari|lamborghini|tesla|porsche|rolls/i);
+    expect(src).not.toMatch(/arthas|illidan|majin|bowser|goku|monopoly|\balec\b|ferrari|lamborghini|tesla|porsche|rolls/i);
   });
 });
