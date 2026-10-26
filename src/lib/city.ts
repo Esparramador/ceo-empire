@@ -1,4 +1,5 @@
 import layout from "./cityLayout.json";
+import { PLACE_OBSTACLES } from "./gameData";
 
 export interface Building { x: number; z: number; w: number; d: number; h: number; style: string }
 export interface Block { x0: number; x1: number; z0: number; z1: number; type: string }
@@ -52,6 +53,17 @@ export function resolveCollision(p: { x: number; z: number }, r: number): boolea
       else p.z += Math.sign(dz || 1) * pz;
     }
   }
+  // Story structures (club, kiosk, lairs…) are exact boxes, no canopy margin
+  for (const o of PLACE_OBSTACLES) {
+    const dx = p.x - o.x, dz = p.z - o.z;
+    const px = o.hw + r - Math.abs(dx);
+    if (px <= 0) continue;
+    const pz = o.hd + r - Math.abs(dz);
+    if (pz <= 0) continue;
+    hit = true;
+    if (px < pz) p.x += Math.sign(dx || 1) * px;
+    else p.z += Math.sign(dz || 1) * pz;
+  }
   const f = CITY.fountain;
   const fx = p.x - f.x, fz = p.z - f.z;
   const fd = Math.hypot(fx, fz), fr = f.r + r;
@@ -71,4 +83,59 @@ export function nightFactor(hour: number): number {
   if (hour >= 20 || hour <= 5) return 1;
   if (hour < 7) return (7 - hour) / 2;
   return (hour - 18) / 2;
+}
+
+/** Is (x, z) inside a building or story structure (grown by `margin`)? */
+export function insideObstacle(x: number, z: number, margin = 0): boolean {
+  for (const b of CITY.buildings) {
+    if (Math.abs(x - b.x) < b.w / 2 + margin && Math.abs(z - b.z) < b.d / 2 + margin) return true;
+  }
+  for (const o of PLACE_OBSTACLES) {
+    if (Math.abs(x - o.x) < o.hw + margin && Math.abs(z - o.z) < o.hd + margin) return true;
+  }
+  return false;
+}
+
+/** 2D line of sight between two points (shots don't go through buildings). */
+export function lineOfSight(ax: number, az: number, bx: number, bz: number): boolean {
+  const steps = Math.ceil(Math.hypot(bx - ax, bz - az) / 1.5);
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    if (insideObstacle(ax + (bx - ax) * t, az + (bz - az) * t)) return false;
+  }
+  return true;
+}
+
+/** Solid boxes the camera must not see through: city buildings (with parapet and canopy) and story structures. */
+const CAMERA_BOXES = [
+  ...CITY.buildings.map(b => ({ x: b.x, z: b.z, hw: b.w / 2 + 0.3, hd: b.d / 2 + 0.3, h: b.h + 1 })),
+  ...PLACE_OBSTACLES,
+];
+
+/**
+ * First hit of the segment a→b against the solid boxes, as a fraction of its
+ * length (1 = clear). 3D slab test, so a camera above a low structure (the
+ * kiosk, the club's stage) is not pulled in by it.
+ */
+export function cameraRayHit(
+  ax: number, ay: number, az: number, bx: number, by: number, bz: number,
+): number {
+  const dx = bx - ax, dy = by - ay, dz = bz - az;
+  let best = 1;
+  for (const o of CAMERA_BOXES) {
+    let t0 = 0, t1 = best;
+    const slabs: [number, number, number, number][] = [
+      [ax, dx, o.x - o.hw, o.x + o.hw], [ay, dy, -1, o.h], [az, dz, o.z - o.hd, o.z + o.hd],
+    ];
+    let miss = false;
+    for (const [p, d, lo, hi] of slabs) {
+      if (Math.abs(d) < 1e-9) { if (p < lo || p > hi) { miss = true; break; } continue; }
+      let ta = (lo - p) / d, tb = (hi - p) / d;
+      if (ta > tb) [ta, tb] = [tb, ta];
+      t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
+      if (t0 > t1) { miss = true; break; }
+    }
+    if (!miss && t0 < best) best = t0;
+  }
+  return best;
 }

@@ -4,7 +4,9 @@ import { Environment, Lightformer, Sky, Stars } from "@react-three/drei";
 import * as THREE from "three";
 import { useGame } from "../lib/gameStore";
 import { nightFactor } from "../lib/city";
-import { runtime } from "./runtime";
+import { runtime } from "../lib/world";
+
+const HOUR_SECONDS = 50; // 1 hora de juego = 50 s reales (día completo = 20 min)
 
 const DAY_FOG = new THREE.Color("#b9cde0");
 const DUSK_FOG = new THREE.Color("#d39a6e");
@@ -23,16 +25,18 @@ export function DayNightSystem() {
   const fogColor = useRef(new THREE.Color());
 
   useFrame((_, delta) => {
-    const st = useGame.getState();
-    if (st.phase === "playing") st.tickDayTime(delta * 0.02); // 1 s ≈ 1.2 game minutes
-    const t = st.dayTime;
+    // The clock lives in the per-frame runtime (saved with the game), not in the
+    // store: a store update every frame would re-render every subscriber.
+    if (useGame.getState().phase === "playing") runtime.hour = (runtime.hour + delta / HOUR_SECONDS) % 24;
+    const t = runtime.hour;
     const n = nightFactor(t);
+    runtime.night = n;
 
     // Sun path: rises at 6h in the east, sets at 18h in the west
     const ang = ((t - 6) / 12) * Math.PI;
     sunDir.current.set(Math.cos(ang), Math.sin(ang), 0.35).normalize();
     const elev = sunDir.current.y;
-    const p = runtime.player;
+    const p = runtime.player.pos;
 
     if (sun.current) {
       // Moonlight at night (from the opposite side), sun otherwise
@@ -44,16 +48,17 @@ export function DayNightSystem() {
         sun.current.intensity = 0.4 + Math.min(1, elev * 3) * 2.6;
         sun.current.color.copy(SUN_LOW).lerp(SUN_DAY, Math.min(1, elev * 2.5));
       } else {
-        sun.current.intensity = 0.35 * n;
+        sun.current.intensity = 0.55 * n;
         sun.current.color.copy(MOON);
       }
     }
-    if (hemi.current) hemi.current.intensity = 0.15 + (1 - n) * 0.7;
+    // night floor keeps streets readable where no street lamp reaches
+    if (hemi.current) hemi.current.intensity = 0.32 + (1 - n) * 0.53;
     if (sky.current?.material) {
       sky.current.material.uniforms.sunPosition.value.copy(sunDir.current).multiplyScalar(1000);
     }
     if (stars.current) (stars.current.material as THREE.PointsMaterial).opacity = n;
-    scene.environmentIntensity = 0.15 + (1 - n) * 0.85;
+    scene.environmentIntensity = 0.25 + (1 - n) * 0.75;
 
     if (scene.fog) {
       const dusk = Math.max(0, 1 - Math.abs(elev) * 5);

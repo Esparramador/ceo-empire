@@ -1,116 +1,155 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useGame } from "./gameStore";
-import { BUSINESSES, MISSIONS } from "./gameData";
+import { beforeEach, describe, expect, it } from "vitest";
+import { useGame, availableSideMissions } from "./gameStore";
+import { BUSINESSES, MISSIONS, HIRE_COST } from "./gameData";
+import { runtime } from "./world";
+
+// In-memory localStorage so saveGame / continueGame run in Node
+const mem = new Map<string, string>();
+(globalThis as unknown as { localStorage: Storage }).localStorage = {
+  getItem: k => mem.get(k) ?? null,
+  setItem: (k, v) => { mem.set(k, String(v)); },
+  removeItem: k => { mem.delete(k); },
+  clear: () => mem.clear(),
+  key: () => null,
+  length: 0,
+};
 
 const store = () => useGame.getState();
 const mission = (id: string) => MISSIONS.find(m => m.id === id)!;
 const cafe = BUSINESSES.find(b => b.id === "cafe")!;
 
 beforeEach(() => {
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date("2026-10-26T12:00:00Z"));
-  store().reset();
+  mem.clear();
+  store().newGame("crafter");
+  store().startPlaying();
 });
-afterEach(() => vi.useRealTimers());
+
+describe("new game", () => {
+  it("starts in the plaza with the first story mission on offer", () => {
+    expect(store().phase).toBe("playing");
+    expect(store().money).toBe(5000);
+    expect(store().availableMissionId).toBe("m1");
+    expect(runtime.player.pos.x).toBe(4);
+  });
+
+  it("applies each CEO's perk", () => {
+    store().newGame("magnate");
+    expect(store().money).toBe(7500);
+    store().newGame("ejecutiva");
+    expect(store().maxHealth).toBe(120);
+    store().newGame("formal");
+    expect(store().businessPrice("cafe")).toBe(Math.round(cafe.price * 0.9));
+  });
+});
 
 describe("missions", () => {
-  it("pays a mission once, even if completion fires again", () => {
-    const money = store().money;
-    store().completeMission(true, "ok");
-    store().completeMission(true, "ok");
-    expect(store().completedMissions).toEqual(["mission_1"]);
-    expect(store().money).toBe(money + mission("mission_1").rewardMoney);
-    expect(store().currentObjective).toBe("ok");
+  it("pays a mission once and moves the story on", () => {
+    store().acceptMission("m1");
+    store().completeMission();
+    store().completeMission();
+    expect(store().completedMissions).toEqual(["m1"]);
+    expect(store().money).toBe(5000 + mission("m1").rewardMoney);
+    expect(store().availableMissionId).toBe("m2");
   });
 
-  it("cannot restart a completed mission (no infinite money)", () => {
-    store().completeMission(true);
-    store().startMission("mission_1");
+  it("cannot accept a main mission the story has not reached, or one already done", () => {
+    store().acceptMission("m14");
+    expect(store().activeMissionId).toBeNull();
+    store().acceptMission("m1");
+    store().completeMission();
+    store().acceptMission("m1");
     expect(store().activeMissionId).toBeNull();
   });
 
-  it("only starts the next mission in the story", () => {
-    store().completeMission(true); // mission_1
-    store().startMission("mission_5");
+  it("keeps side missions locked until their main mission is done", () => {
+    store().acceptMission("s_express");
     expect(store().activeMissionId).toBeNull();
-    store().startMission("mission_2");
-    expect(store().activeMissionId).toBe("mission_2");
+    useGame.setState({ completedMissions: ["m1", "m2"], availableMissionId: "m3" });
+    expect(availableSideMissions(store()).map(m => m.id)).toContain("s_express");
+    store().acceptMission("s_express");
+    expect(store().activeMissionId).toBe("s_express");
   });
 
-  it("reaches mission 5 even though missions 4 and 5 share a marker", () => {
-    for (const id of ["mission_1", "mission_2", "mission_3", "mission_4"]) {
-      if (store().activeMissionId !== id) store().startMission(id);
-      expect(store().activeMissionId).toBe(id);
-      store().completeMission(true);
-    }
-    store().startMission("mission_5");
-    expect(store().activeMissionId).toBe("mission_5");
-  });
-
-  it("a failed mission pays nothing and can be retried", () => {
+  it("a failed main mission pays nothing and is offered again", () => {
+    useGame.setState({ completedMissions: ["m1", "m2"], availableMissionId: "m3" });
+    store().acceptMission("m3");
     const money = store().money;
-    store().completeMission(false);
+    store().failMission("se acabó el tiempo");
     expect(store().money).toBe(money);
-    store().startMission("mission_1");
-    expect(store().activeMissionId).toBe("mission_1");
+    expect(store().availableMissionId).toBe("m3");
+  });
+
+  it("the last main mission ends the game in victory", () => {
+    useGame.setState({ completedMissions: MISSIONS.filter(m => m.category === "main" && m.id !== "m14").map(m => m.id), availableMissionId: "m14" });
+    store().acceptMission("m14");
+    store().completeMission();
+    expect(store().phase).toBe("victory");
+  });
+
+  it("an investment charges its cost up front", () => {
+    useGame.setState({ completedMissions: ["m1", "m2", "m3", "m4", "m5", "m6"], availableMissionId: "m7", money: 30000 });
+    store().acceptMission("s_angel");
+    expect(store().activeMissionId).toBe("s_angel");
+    expect(store().money).toBe(10000);
   });
 });
 
-describe("businesses and passive income", () => {
-  it("does not pay income for the time before the first purchase", () => {
-    vi.advanceTimersByTime(10 * 60_000); // ten minutes walking around
-    store().buyBusiness("cafe");
-    vi.advanceTimersByTime(1000);
-    store().tickPassiveIncome();
-    expect(store().money).toBe(5000 - cafe.price + cafe.incomePerSec);
-  });
-
-  it("does not charge twice for a business already owned", () => {
-    store().addMoney(100_000);
-    store().buyBusiness("cafe");
+describe("businesses", () => {
+  it("buys once, never charges twice, and refuses without money", () => {
+    expect(store().buyBusiness("cafe")).toBe(true);
     const money = store().money;
-    store().buyBusiness("cafe");
+    expect(store().buyBusiness("cafe")).toBe(false);
     expect(store().money).toBe(money);
-    expect(store().ownedBusinesses).toEqual(["cafe"]);
-    expect(store().passiveIncomePerSec).toBe(cafe.incomePerSec);
+    expect(store().buyBusiness("empire")).toBe(false);
   });
 
-  it("refuses a purchase without enough money", () => {
-    store().buyBusiness("empire");
-    expect(store().ownedBusinesses).toEqual([]);
-    expect(store().money).toBe(5000);
+  it("income grows with level, employees and the CEO Crafter perk; the club doubles at night", () => {
+    useGame.setState({ money: 1_000_000 });
+    store().buyBusiness("cafe");
+    expect(store().incomePerSec()).toBeCloseTo(cafe.incomePerSec * 1.1);
+    store().upgradeBusiness("cafe");
+    expect(store().incomePerSec()).toBeCloseTo(cafe.incomePerSec * 1.6 * 1.1);
+    store().hireNpc("npc_cit1");
+    expect(store().employees).toBe(1);
+    expect(store().money).toBe(1_000_000 - cafe.price - Math.round(cafe.price * 0.6) - HIRE_COST);
+    const club = BUSINESSES.find(b => b.id === "club")!;
+    useGame.setState({ ownedBusinesses: { club: 1 }, employees: 0 });
+    runtime.night = 0;
+    const day = store().incomePerSec();
+    runtime.night = 1;
+    expect(store().incomePerSec()).toBeCloseTo(day * 2);
+    expect(day).toBeCloseTo(club.incomePerSec * 1.1);
+    runtime.night = 0;
   });
 });
 
-describe("vehicles", () => {
-  it("entering a car clears on-foot prompts so they cannot act from inside", () => {
-    store().setNearbyNpcId("npc_garcia");
-    store().setNearbyBusinessId("cafe");
-    store().setNearbyMissionId("mission_1");
-    store().enterVehicle("car1");
-    const s = store();
-    expect([s.nearbyNpcId, s.nearbyBusinessId, s.nearbyMissionId, s.nearbyVehicleId]).toEqual([null, null, null, null]);
-    expect(s.activeVehicleId).toBe("car1");
-  });
-});
-
-describe("reset", () => {
-  it("restores every field but keeps the chosen character", () => {
-    store().setSelectedCharacter("chica_creativa");
-    store().addMoney(1234);
-    store().setNearbyNpcId("npc_lord");
-    store().enterVehicle("car1");
-    store().takeDamage(100);
+describe("life, police and saving", () => {
+  it("dying sends you to hospital with a 10 % bill and clears the stars", () => {
+    useGame.setState({ money: 10000, wantedLevel: 3 });
+    store().takeDamage(999);
     expect(store().phase).toBe("dead");
+    store().respawn();
+    expect(store().phase).toBe("playing");
+    expect(store().money).toBe(9000);
+    expect(store().wantedLevel).toBe(0);
+    expect(store().health).toBe(store().maxHealth);
+  });
 
-    store().reset();
-    const s = store();
-    expect(s.phase).toBe("menu");
-    expect(s.money).toBe(5000);
-    expect(s.health).toBe(100);
-    expect(s.nearbyNpcId).toBeNull();
-    expect(s.inVehicle).toBe(false);
-    expect(s.activeMissionId).toBe("mission_1");
-    expect(s.selectedCharacter).toBe("chica_creativa");
+  it("the armoured suit cuts damage by 40 %", () => {
+    useGame.setState({ armor: true });
+    store().takeDamage(50);
+    expect(store().health).toBe(70);
+  });
+
+  it("saves and continues the same game", () => {
+    useGame.setState({ money: 123456 });
+    store().acceptMission("m1");
+    store().completeMission();
+    store().quitToMenu(); // saves
+    useGame.setState({ completedMissions: [], money: 0, selectedCharacter: "formal" });
+    store().continueGame();
+    expect(store().phase).toBe("playing");
+    expect(store().completedMissions).toEqual(["m1"]);
+    expect(store().selectedCharacter).toBe("crafter");
   });
 });

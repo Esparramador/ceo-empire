@@ -11,8 +11,9 @@ import math
 import lib
 
 CHARACTERS = {
-    "alec_monopoly": {"skin": "#e8b996", "suit": "#15161a", "shirt": "#f4f4f4", "tie": "#c8102e", "pants": "#15161a",
-                      "shoes": "#0a0a0a", "hair": "#d9d9d9", "hair_style": "short", "extras": ["tophat", "monocle", "mustache"]},
+    # Playable: top hat, monocle and moustache
+    "ceo_magnate": {"skin": "#e8b996", "suit": "#15161a", "shirt": "#f4f4f4", "tie": "#c8102e", "pants": "#15161a",
+                    "shoes": "#0a0a0a", "hair": "#d9d9d9", "hair_style": "short", "extras": ["tophat", "monocle", "mustache"]},
     "chico_formal": {"skin": "#d9a37e", "suit": "#1d2b4f", "shirt": "#eef3ff", "tie": "#c9a227", "pants": "#1d2b4f",
                      "shoes": "#2b1a10", "hair": "#2a1a10", "hair_style": "short", "extras": []},
     "chica_ejecutiva": {"skin": "#f0c3a0", "suit": "#4a4d55", "shirt": "#ffffff", "tie": None, "pants": "#4a4d55",
@@ -23,12 +24,13 @@ CHARACTERS = {
                      "shoes": "#e8e8e8", "hair": "#111111", "hair_style": "short", "extras": ["hood"]},
     "lord_tuetano": {"skin": "#ece4d0", "suit": "#3b0d18", "shirt": "#1a1a1a", "tie": "#d4af37", "pants": "#1a0a0e",
                      "shoes": "#111111", "hair": None, "hair_style": "none", "extras": ["crown", "cape", "glow_red"], "bulk": 1.1},
-    "majin_bu": {"skin": "#f39ac2", "suit": "#f4f4f4", "shirt": "#3b1f6e", "tie": None, "pants": "#f4f4f4",
-                 "shoes": "#e0b000", "hair": None, "hair_style": "none", "extras": ["antenna", "belt_gold"], "bulk": 1.5},
-    "illidan": {"skin": "#6a4c93", "suit": "#2c2c2c", "shirt": "#6a4c93", "tie": None, "pants": "#3a2d1e",
-                "shoes": "#1e1e1e", "hair": "#111111", "hair_style": "long", "extras": ["horns", "blindfold", "bare_chest"], "bulk": 1.15},
-    "arthas": {"skin": "#cfd8e3", "suit": "#4b5a6e", "shirt": "#2a3442", "tie": None, "pants": "#2a3442",
-               "shoes": "#1a2230", "hair": None, "hair_style": "none", "extras": ["helm", "pauldrons", "cape", "glow_blue"], "bulk": 1.2},
+    # Tuétano's partners and the Ice Tower's keeper (original look kept by the owner, see the PR)
+    "baron_bombon": {"skin": "#f39ac2", "suit": "#f4f4f4", "shirt": "#3b1f6e", "tie": None, "pants": "#f4f4f4",
+                     "shoes": "#e0b000", "hair": None, "hair_style": "none", "extras": ["antenna", "belt_gold"], "bulk": 1.5},
+    "malvik": {"skin": "#6a4c93", "suit": "#2c2c2c", "shirt": "#6a4c93", "tie": None, "pants": "#3a2d1e",
+               "shoes": "#1e1e1e", "hair": "#111111", "hair_style": "long", "extras": ["horns", "blindfold", "bare_chest"], "bulk": 1.15},
+    "conde_glaciar": {"skin": "#cfd8e3", "suit": "#4b5a6e", "shirt": "#2a3442", "tie": None, "pants": "#2a3442",
+                      "shoes": "#1a2230", "hair": None, "hair_style": "none", "extras": ["helm", "pauldrons", "cape", "glow_blue"], "bulk": 1.2},
 }
 
 
